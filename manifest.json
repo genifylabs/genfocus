@@ -4,21 +4,21 @@
   "description": "Deep work, made simple.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#1a1a2e",
+  "background_color": "#7c6fe0",
   "theme_color": "#1a1a2e",
   "orientation": "portrait-primary",
   "scope": "./",
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='40' fill='%231a1a2e'/><circle cx='96' cy='96' r='60' stroke='%232563eb' stroke-width='8' fill='none'/><polyline points='96,64 96,96 116,108' stroke='%232563eb' stroke-width='8' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>",
+      "src": "favicon-192-192.jpg",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/jpg",
       "purpose": "any maskable"
     },
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%231a1a2e'/><circle cx='256' cy='256' r='160' stroke='%232563eb' stroke-width='18' fill='none'/><polyline points='256,168 256,256 308,288' stroke='%232563eb' stroke-width='18' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>",
+      "src": "favicon-512-512.jpg",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/jpg",
       "purpose": "any maskable"
     }
   ],
