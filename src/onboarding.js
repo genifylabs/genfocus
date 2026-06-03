@@ -71,6 +71,12 @@
   function closeModal() {
     modal.classList.remove('active');
     markOnboarded();
+
+    if (window.FocusNotifications && window.FocusNotifications.requestAndEnable) {
+      setTimeout(() => {
+        window.FocusNotifications.requestAndEnable();
+      }, 600);
+    }
   }
 
   // ── Step handlers ──────────────────────────────────────────────────────────

@@ -76,13 +76,23 @@
     filteredSessions.sort((a, b) => new Date(b.date) - new Date(a.date));
 
     if (filteredSessions.length === 0) {
+      const isHistoryEmpty = sessions.length === 0;
+      const message = isHistoryEmpty
+        ? 'No sessions yet — your history will appear here after your first session.'
+        : 'No focus sessions match your search or filters.';
+      const iconMarkup = isHistoryEmpty
+        ? `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+             <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+           </svg>`
+        : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+             <circle cx="12" cy="12" r="10"></circle>
+             <line x1="8" y1="12" x2="16" y2="12"></line>
+           </svg>`;
+
       historyLogContainer.innerHTML = `
         <div class="empty-state">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="8" y1="12" x2="16" y2="12"></line>
-          </svg>
-          <p>No focus sessions match your search or filters.</p>
+          ${iconMarkup}
+          <p>${message}</p>
         </div>`;
       return;
     }

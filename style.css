@@ -475,10 +475,19 @@ body {
 
 .sidebar-footer {
   border-top: 1px solid var(--card-border);
-  padding-top: 1.5rem;
+  padding-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.sidebar-footer-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  gap: 0.5rem;
 }
 
 .user-badge {
@@ -486,6 +495,11 @@ body {
   align-items: center;
   gap: 0.6rem;
   overflow: hidden;
+  flex: 1;
+  padding: 0.4rem 0.75rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--card-border);
 }
 
 .avatar-glow {
@@ -509,15 +523,49 @@ body {
 .btn-logout {
   width: 36px;
   height: 36px;
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
 }
 .btn-logout:hover {
   background: rgba(239, 68, 68, 0.1);
   color: var(--accent-red);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.guest-signup-nudge {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--accent-color);
+  text-decoration: none;
+  font-weight: 500;
+  text-align: center;
+  transition: color var(--transition-fast);
+  margin-top: 0.25rem;
+}
+
+.guest-signup-nudge:hover {
+  color: #c084fc;
+  text-decoration: underline;
+}
+
+.genify-link {
+  color: inherit;
+  text-decoration: none;
+  font-weight: 600;
+  transition: color var(--transition-fast);
+}
+
+.genify-link:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
 }
 
 /* --------------------------------------------------------------------------
@@ -1568,17 +1616,33 @@ body {
   letter-spacing: 0.04em;
 }
 
-#daily-goal-count {
+.daily-goal-ring-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.daily-goal-ring {
+  flex-shrink: 0;
+  display: block;
+}
+
+.daily-goal-ring__bg {
+  stroke: rgba(255, 255, 255, 0.05);
+}
+
+.daily-goal-ring__fill {
+  stroke: var(--accent-blue);
+  transition: stroke-dashoffset 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.daily-goal-ring-text {
   font-weight: 700;
   color: var(--accent-blue);
 }
 
 .daily-goal-bar-track {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.03);
-  overflow: hidden;
+  display: none; /* Hide the bar since we added a circular progress ring next to the text as requested */
 }
 
 .daily-goal-bar-fill {
@@ -1588,6 +1652,15 @@ body {
   box-shadow: 0 0 8px rgba(37, 99, 235, 0.4);
   width: 0%;
   transition: width 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.timer-idle-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 1rem;
+  margin-bottom: 0;
+  animation: fade-in var(--transition-normal);
+  transition: all var(--transition-normal);
 }
 
 /* Goal-hit celebration: breathing glow on the timer circle */
@@ -1876,6 +1949,61 @@ body {
   margin-top: 0.5rem;
   text-align: center;
   width: 100%;
+}
+
+/* Firebase Status Badge & UI */
+.firebase-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--card-border);
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 1.25rem;
+  transition: all 0.3s ease;
+}
+
+.firebase-status-badge.status-connected {
+  border-color: rgba(20, 184, 166, 0.3);
+  background: rgba(20, 184, 166, 0.05);
+  color: var(--accent-color);
+}
+
+.firebase-status-badge.status-disconnected {
+  border-color: rgba(239, 68, 68, 0.2);
+  background: rgba(239, 68, 68, 0.03);
+  color: var(--text-muted);
+}
+
+.firebase-status-badge .status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  display: inline-block;
+  box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  transition: all 0.3s ease;
+}
+
+.firebase-status-badge.status-connected .status-indicator {
+  background: var(--accent-color);
+  box-shadow: 0 0 8px var(--accent-color);
+  animation: fb-pulse-green 2s infinite;
+}
+
+@keyframes fb-pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(20, 184, 166, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(20, 184, 166, 0);
+  }
 }
 
 

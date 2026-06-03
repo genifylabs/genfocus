@@ -141,6 +141,7 @@
     notifyFocusComplete,
     notifyBreakComplete,
     isEnabled,
-    syncToggleUI
+    syncToggleUI,
+    requestAndEnable
   };
 })();

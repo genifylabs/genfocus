@@ -47,6 +47,20 @@
     }
   }
 
+  function updateActiveUserLayout(username) {
+    const isGuest = !username || username.toLowerCase() === 'guest';
+    activeUserDisplay.textContent = isGuest ? 'Guest Mode' : username;
+    
+    const signupNudge = document.getElementById('guest-signup-nudge');
+    if (signupNudge) {
+      if (isGuest) {
+        signupNudge.classList.remove('hidden');
+      } else {
+        signupNudge.classList.add('hidden');
+      }
+    }
+  }
+
   function toggleView(isLoggedIn) {
     if (isLoggedIn) {
       authView.classList.remove('active');
@@ -77,8 +91,23 @@
       loginForm.reset();
     });
 
+    // Guest Signup Nudge Redirect
+    const signupNudge = document.getElementById('guest-signup-nudge');
+    if (signupNudge) {
+      signupNudge.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.FocusStorage.logout();
+        toggleView(false);
+        clearFormErrors(loginForm);
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+        signupForm.reset();
+        if (typeof onLogout === 'function') onLogout();
+      });
+    }
+
     // 2. Handle Signup Submission
-    signupForm.addEventListener('submit', (e) => {
+    signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearFormErrors(signupForm);
 
@@ -99,32 +128,32 @@
         return;
       }
 
-      const success = window.FocusStorage.registerUser(username, password);
+      const success = await window.FocusStorage.registerUser(username, password);
       if (success) {
-        const loggedIn = window.FocusStorage.loginUser(username, password);
+        const loggedIn = await window.FocusStorage.loginUser(username, password);
         if (loggedIn) {
           const activeUser = window.FocusStorage.getCurrentUser();
-          activeUserDisplay.textContent = activeUser;
+          updateActiveUserLayout(activeUser);
           toggleView(true);
           if (typeof onLogin === 'function') onLogin(activeUser);
         }
       } else {
-        showFormError(signupForm, "Username already taken on this device.");
+        showFormError(signupForm, "Username already taken on this device or in the database.");
       }
     });
 
     // 3. Handle Login Submission
-    loginForm.addEventListener('submit', (e) => {
+    loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearFormErrors(loginForm);
 
       const username = document.getElementById('login-username').value;
       const password = document.getElementById('login-password').value;
 
-      const success = window.FocusStorage.loginUser(username, password);
+      const success = await window.FocusStorage.loginUser(username, password);
       if (success) {
         const activeUser = window.FocusStorage.getCurrentUser();
-        activeUserDisplay.textContent = activeUser;
+        updateActiveUserLayout(activeUser);
         toggleView(true);
         if (typeof onLogin === 'function') onLogin(activeUser);
       } else {
@@ -146,7 +175,7 @@
     guestBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         window.FocusStorage.loginGuest();
-        activeUserDisplay.textContent = 'Guest';
+        updateActiveUserLayout('Guest');
         toggleView(true);
         if (typeof onLogin === 'function') onLogin('Guest');
       });
@@ -154,13 +183,13 @@
 
     // 6. Initial Session Check on Boot
     if (window.FocusStorage.isGuest && window.FocusStorage.isGuest()) {
-      activeUserDisplay.textContent = 'Guest';
+      updateActiveUserLayout('Guest');
       toggleView(true);
       if (typeof onLogin === 'function') onLogin('Guest');
     } else {
       const existingUser = window.FocusStorage.getCurrentUser();
       if (existingUser) {
-        activeUserDisplay.textContent = existingUser;
+        updateActiveUserLayout(existingUser);
         toggleView(true);
         if (typeof onLogin === 'function') onLogin(existingUser);
       } else {

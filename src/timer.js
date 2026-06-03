@@ -141,6 +141,15 @@
     document.title = state === 'running'
       ? `[${displayString}] ${modeText} | GenFocus`
       : `GenFocus | Deep work, made simple.`;
+
+    const hintEl = document.getElementById('timer-idle-hint');
+    if (hintEl) {
+      if (state === 'idle' && mode === 'focus') {
+        hintEl.classList.remove('hidden');
+      } else {
+        hintEl.classList.add('hidden');
+      }
+    }
   }
 
   /**

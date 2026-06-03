@@ -31,6 +31,13 @@
     const val = Math.max(1, Math.min(24, parseInt(n, 10) || 4));
     goalStore().setItem(goalKey(), String(val));
     refreshGoalUI();
+
+    // Sync to Firestore
+    const user = window.FocusStorage.getCurrentUser();
+    if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+      window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ dailyGoal: val })
+        .catch(e => console.error('Error syncing daily goal to Firestore:', e));
+    }
   }
 
   // ── Today count ─────────────────────────────────────────────────────────────
@@ -65,8 +72,16 @@
     const countEl = document.getElementById('daily-goal-count');
     const fillEl  = document.getElementById('daily-goal-bar-fill');
 
-    if (countEl) countEl.textContent = `${clamped} / ${goal}`;
+    if (countEl) countEl.textContent = `${clamped} of ${goal} sessions today`;
     if (fillEl)  fillEl.style.width  = `${pct}%`;
+
+    const ringFillEl = document.getElementById('daily-goal-ring-fill');
+    if (ringFillEl) {
+      const radius = 15;
+      const circumference = 2 * Math.PI * radius;
+      const ringOffset = circumference - (clamped / goal) * circumference;
+      ringFillEl.style.strokeDashoffset = ringOffset;
+    }
 
     // Sync settings input if it exists
     const settingsInput = document.getElementById('settings-daily-goal');

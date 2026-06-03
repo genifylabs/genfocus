@@ -195,10 +195,50 @@
     });
   }
 
+  function loadFirebaseConfig() {
+    const config = window.FocusFirebase.loadConfig();
+    const apiKeyEl = document.getElementById('firebase-api-key');
+    const authDomainEl = document.getElementById('firebase-auth-domain');
+    const projectIdEl = document.getElementById('firebase-project-id');
+    const storageBucketEl = document.getElementById('firebase-storage-bucket');
+    const msgSenderIdEl = document.getElementById('firebase-messaging-sender-id');
+    const appIdEl = document.getElementById('firebase-app-id');
+
+    if (config) {
+      if (apiKeyEl) apiKeyEl.value = config.apiKey || '';
+      if (authDomainEl) authDomainEl.value = config.authDomain || '';
+      if (projectIdEl) projectIdEl.value = config.projectId || '';
+      if (storageBucketEl) storageBucketEl.value = config.storageBucket || '';
+      if (msgSenderIdEl) msgSenderIdEl.value = config.messagingSenderId || '';
+      if (appIdEl) appIdEl.value = config.appId || '';
+    } else {
+      if (apiKeyEl) apiKeyEl.value = '';
+      if (authDomainEl) authDomainEl.value = '';
+      if (projectIdEl) projectIdEl.value = '';
+      if (storageBucketEl) storageBucketEl.value = '';
+      if (msgSenderIdEl) msgSenderIdEl.value = '';
+      if (appIdEl) appIdEl.value = '';
+    }
+
+    // Update status badge
+    const statusBadge = document.getElementById('firebase-status-badge');
+    if (statusBadge) {
+      const statusText = statusBadge.querySelector('.status-text');
+      if (window.FocusFirebase.isConnected) {
+        statusBadge.className = 'firebase-status-badge status-connected';
+        if (statusText) statusText.textContent = 'Cloud Sync Connected';
+      } else {
+        statusBadge.className = 'firebase-status-badge status-disconnected';
+        if (statusText) statusText.textContent = 'Local-Only Mode';
+      }
+    }
+  }
+
   function refreshSettingsView() {
     loadDurations();
     renderTagsCRUD();
     loadProfiles();
+    loadFirebaseConfig();
   }
 
   function initSettings(callbacks = {}) {
@@ -306,7 +346,67 @@
         }
       });
     }
-    
+
+    // 5. Firebase Configuration Form Save & Connect
+    const firebaseForm = document.getElementById('firebase-config-form');
+    if (firebaseForm) {
+      firebaseForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const apiKeyVal = document.getElementById('firebase-api-key').value.trim();
+        const authDomainVal = document.getElementById('firebase-auth-domain').value.trim();
+        const projectIdVal = document.getElementById('firebase-project-id').value.trim();
+        const storageBucketVal = document.getElementById('firebase-storage-bucket').value.trim();
+        const msgSenderIdVal = document.getElementById('firebase-messaging-sender-id').value.trim();
+        const appIdVal = document.getElementById('firebase-app-id').value.trim();
+
+        const config = {
+          apiKey: apiKeyVal,
+          authDomain: authDomainVal,
+          projectId: projectIdVal,
+          storageBucket: storageBucketVal,
+          messagingSenderId: msgSenderIdVal,
+          appId: appIdVal
+        };
+
+        if (!window.FocusFirebase.isConfigValid(config)) {
+          showToast("API Key and Project ID are required.", "error");
+          return;
+        }
+
+        showToast("Connecting to Firebase...");
+        const connected = await window.FocusFirebase.saveConfig(config);
+        
+        if (connected) {
+          showToast("Firebase Config saved and connected successfully!");
+          
+          // Trigger sync of current user data
+          const currentUser = window.FocusStorage.getCurrentUser();
+          if (currentUser && currentUser !== 'Guest') {
+            showToast("Syncing data to Firebase Firestore...");
+            await window.FocusStorage.syncLocalToCloud(currentUser);
+          }
+          
+          refreshSettingsView();
+        } else {
+          showToast("Failed to connect. Please verify credentials.", "error");
+          refreshSettingsView();
+        }
+      });
+    }
+
+    // 6. Clear Firebase Configuration Trigger
+    const clearFirebaseBtn = document.getElementById('clear-firebase-btn');
+    if (clearFirebaseBtn) {
+      clearFirebaseBtn.addEventListener('click', () => {
+        if (confirm("Are you sure you want to delete your Firebase configuration? The app will revert to Local-Only mode.")) {
+          window.FocusFirebase.clearConfig();
+          showToast("Firebase configuration cleared.");
+          refreshSettingsView();
+        }
+      });
+    }
+
     // Initial population
     refreshSettingsView();
   }

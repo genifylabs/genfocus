@@ -130,18 +130,21 @@
         </nav>
 
         <div class="sidebar-footer">
-          <div class="user-badge neumorphic-inset">
-            <div class="avatar-glow"></div>
-            <span id="active-user-display" class="username">Guest</span>
+          <div class="sidebar-footer-top">
+            <div class="user-badge neumorphic-inset">
+              <div class="avatar-glow"></div>
+              <span id="active-user-display" class="username">Guest Mode</span>
+            </div>
+            <button id="logout-btn" class="btn btn-text btn-logout" title="Log Out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
           </div>
-          <button id="logout-btn" class="btn btn-text btn-logout neumorphic-extruded" title="Log Out">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-          </button>
-          <div class="brand-signature">by Genify</div>
+          <a href="#" id="guest-signup-nudge" class="guest-signup-nudge hidden">Save your progress — create a profile</a>
+          <div class="brand-signature">by <a href="https://meetgenify.vercel.app" target="_blank" rel="noopener noreferrer" class="genify-link">Genify</a></div>
         </div>
       </aside>
 
@@ -182,7 +185,13 @@
             <div class="daily-goal-container">
               <div class="daily-goal-header">
                 <span>Daily Focus Goal</span>
-                <span id="daily-goal-count">0 / 4</span>
+                <div class="daily-goal-ring-wrapper">
+                  <svg class="daily-goal-ring" width="36" height="36" viewBox="0 0 36 36">
+                    <circle class="daily-goal-ring__bg" cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="3"/>
+                    <circle id="daily-goal-ring-fill" class="daily-goal-ring__fill" cx="18" cy="18" r="15" fill="none" stroke="var(--accent-blue)" stroke-width="3" stroke-linecap="round" stroke-dasharray="94.25" stroke-dashoffset="94.25" transform="rotate(-90 18 18)"/>
+                  </svg>
+                  <span id="daily-goal-count" class="daily-goal-ring-text">0 of 4 sessions today</span>
+                </div>
               </div>
               <div class="daily-goal-bar-track neumorphic-inset">
                 <div id="daily-goal-bar-fill" class="daily-goal-bar-fill"></div>
@@ -192,7 +201,7 @@
 
           <!-- Session Tagging Row -->
           <div class="tag-selector-wrapper neumorphic-extruded">
-            <h3>Focus Tag</h3>
+            <h3>Tag this session</h3>
             <div id="timer-tag-container" class="tag-selector-grid">
               <!-- Dynamically populated tags -->
             </div>
@@ -213,6 +222,9 @@
               </svg>
             </button>
           </div>
+
+          <!-- Idle hint line -->
+          <p id="timer-idle-hint" class="timer-idle-hint">Your next session starts when you do.</p>
 
         </section>
 
@@ -237,7 +249,7 @@
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <p>No logged focus sessions yet. Complete your first session to start your history.</p>
+                <p>No sessions yet — your history will appear here after your first session.</p>
               </div>
             </div>
           </div>
@@ -247,7 +259,7 @@
         <section id="view-dashboard" class="view-section">
           <div class="view-header">
             <h2>Performance Metrics</h2>
-            <p>Insights into your biological productivity metrics</p>
+            <p>Your focus at a glance.</p>
           </div>
 
           <!-- Stats Grid -->
@@ -315,10 +327,20 @@
         <section id="view-settings" class="view-section">
           <div class="view-header">
             <h2>System Settings</h2>
-            <p>Tailor GenFocus parameters to match your style</p>
+            <p>Customize your experience</p>
           </div>
 
           <div class="settings-layout">
+            <!-- 0. Notifications Toggle Card -->
+            <div class="settings-card neumorphic-extruded">
+              <div class="checkbox-group neumorphic-inset">
+                <label class="checkbox-label" for="settings-notifications">
+                  <input type="checkbox" id="settings-notifications" checked>
+                  <span>Enable Browser Notifications</span>
+                </label>
+              </div>
+            </div>
+
             <!-- 1. Custom Durations Card -->
             <div class="settings-card neumorphic-extruded">
               <h3>Timer Configuration (Minutes)</h3>
@@ -341,14 +363,8 @@
                 </div>
               </div>
               
-              <!-- Notification Toggle and Save Row -->
-              <div class="settings-preferences-row">
-                <div class="checkbox-group neumorphic-inset">
-                  <label class="checkbox-label" for="settings-notifications">
-                    <input type="checkbox" id="settings-notifications" checked>
-                    <span>Enable Browser Notifications</span>
-                  </label>
-                </div>
+              <!-- Save Row -->
+              <div class="settings-preferences-row" style="justify-content: flex-end;">
                 <button id="save-durations-btn" class="btn btn-primary neumorphic-extruded">Apply Settings</button>
               </div>
             </div>
@@ -396,6 +412,50 @@
                 <button id="settings-logout-btn" class="btn btn-secondary neumorphic-extruded" style="border-color: rgba(239, 68, 68, 0.2); color: var(--accent-red);">Log Out</button>
               </div>
             </div>
+
+            <!-- 4. Firebase Configuration Panel -->
+            <div class="settings-card neumorphic-extruded">
+              <h3>Firebase Cloud Sync</h3>
+              <p class="settings-help">Sync your data to Google Firebase Firestore database. When configured, your profiles, sessions, goals, and settings will be securely saved in the cloud.</p>
+              
+              <div id="firebase-status-badge" class="firebase-status-badge status-disconnected">
+                <span class="status-indicator"></span>
+                <span class="status-text">Local-Only Mode</span>
+              </div>
+              
+              <form id="firebase-config-form" class="settings-form">
+                <div class="form-grid">
+                  <div class="input-group">
+                    <label for="firebase-api-key">API Key</label>
+                    <input class="neumorphic-inset" type="password" id="firebase-api-key" placeholder="AIzaSy...">
+                  </div>
+                  <div class="input-group">
+                    <label for="firebase-auth-domain">Auth Domain</label>
+                    <input class="neumorphic-inset" type="text" id="firebase-auth-domain" placeholder="project-id.firebaseapp.com">
+                  </div>
+                  <div class="input-group">
+                    <label for="firebase-project-id">Project ID</label>
+                    <input class="neumorphic-inset" type="text" id="firebase-project-id" placeholder="project-id">
+                  </div>
+                  <div class="input-group">
+                    <label for="firebase-storage-bucket">Storage Bucket</label>
+                    <input class="neumorphic-inset" type="text" id="firebase-storage-bucket" placeholder="project-id.appspot.com">
+                  </div>
+                  <div class="input-group">
+                    <label for="firebase-messaging-sender-id">Messaging Sender ID</label>
+                    <input class="neumorphic-inset" type="text" id="firebase-messaging-sender-id" placeholder="1234567890">
+                  </div>
+                  <div class="input-group">
+                    <label for="firebase-app-id">App ID</label>
+                    <input class="neumorphic-inset" type="text" id="firebase-app-id" placeholder="1:1234:web:abcd">
+                  </div>
+                </div>
+                <div class="settings-preferences-row" style="justify-content: flex-end; gap: 10px;">
+                  <button type="button" id="clear-firebase-btn" class="btn btn-secondary neumorphic-extruded" style="color: var(--accent-red); border-color: rgba(239, 68, 68, 0.2);">Clear Config</button>
+                  <button type="submit" class="btn btn-primary neumorphic-extruded">Save & Connect</button>
+                </div>
+              </form>
+            </div>
           </div>
         </section>
 
@@ -414,7 +474,7 @@
             </svg>
           </div>
           <h2>Focus Complete!</h2>
-          <p>Superb focus. Log details of your flow session below:</p>
+          <p>What did you accomplish this session?</p>
         </div>
 
         <form id="note-modal-form">
@@ -444,15 +504,15 @@
               </svg>
             </div>
             <h2>Welcome to GenFocus</h2>
-            <p>Deep work, made simple.</p>
+            <p>Start a session. Stay focused. Build a streak.</p>
           </div>
           <div class="onboarding-content">
             <p class="onboarding-desc">
-              GenFocus is a minimal, calm, and distraction-free workspace designed by <strong>Genify</strong> to help you reclaim your focus and track deep work goals.
+              Start a session. Stay focused. Build a streak.
             </p>
           </div>
           <div class="modal-actions">
-            <button type="button" id="onboarding-next-1" class="btn btn-primary neumorphic-extruded">Get Started</button>
+            <button type="button" id="onboarding-next-1" class="btn btn-primary neumorphic-extruded">Start focusing</button>
           </div>
         </div>
 
@@ -510,7 +570,7 @@
           </div>
           <div class="modal-actions">
             <button type="button" id="onboarding-skip-3" class="btn btn-secondary neumorphic-extruded">Skip</button>
-            <button type="button" id="onboarding-finish" class="btn btn-primary neumorphic-extruded">Finish Setup</button>
+            <button type="button" id="onboarding-finish" class="btn btn-primary neumorphic-extruded">Start focusing</button>
           </div>
         </div>
 
@@ -539,6 +599,11 @@
   </div>
 
   <!-- App Scripts — order matters for dependency resolution -->
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="src/firebase-config.js"></script>
+  <script src="src/firebase.js"></script>
   <script src="src/storage.js"></script>
   <script src="src/goal.js"></script>
   <script src="src/notifications.js"></script>
