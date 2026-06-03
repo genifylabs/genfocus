@@ -1,15 +1,34 @@
 /**
  * GenFocus Core Bootstrap Application Entrypoint
- * Orchestrates modules, hooks event bindings, handles re-entrant profile initializations,
- * and maintains clean view isolation.
+ * ────────────────────────────────────────────────
+ * Single ES-module entry point. Imports every sub-module in strict
+ * dependency order so Vite's module graph guarantees they are all
+ * defined on `window.*` before `DOMContentLoaded` fires.
+ *
+ * Load chain:
+ *   firebase → storage → goal → notifications → onboarding
+ *   → dashboard → settings → timer → ui → auth → this file (boot)
  */
 
-(function() {
+// ── 1. Side-effect imports – each IIFE registers its window.Focus* global ───
+import './src/storage.js';     // window.FocusStorage  (depends on firebase)
+import './src/goal.js';        // window.FocusGoal     (depends on FocusStorage)
+import './src/notifications.js'; // window.FocusNotifications
+import './src/onboarding.js';  // window.FocusOnboarding
+import './src/dashboard.js';   // window.FocusDashboard
+import './src/settings.js';    // window.FocusSettings
+import './src/timer.js';       // window.FocusTimer
+import './src/ui.js';          // window.FocusUI
+import './src/auth.js';        // window.FocusAuth     (depends on firebase)
+
+// ── 2. Application boot ─────────────────────────────────────────────────────
+
+(function () {
   let isInitialized = false;
 
   /**
    * Handle Profile Login Success Initializations
-   * @param {string} username the authenticated profile
+   * @param {string} username the authenticated email or 'Guest'
    */
   function handleLogin(username) {
     const { initUI, navigateToView, refreshHistoryTagFilters, renderHistoryList } = window.FocusUI;
@@ -24,10 +43,10 @@
       // 2. Initialize Pomodoro Engine and logging callbacks
       initTimer({
         onStateChange: (stateInfo) => {
-          // Can hook live notifications or ambient UI changes
+          // Hook for ambient UI changes / notification state
         },
         onSessionLogged: () => {
-          // Real-time update stats and history logs in background
+          // Real-time refresh of stats and history after a session is logged
           refreshDashboard();
           renderHistoryList();
         }
@@ -44,7 +63,7 @@
           }
         },
         onProfileSwitch: () => {
-          // Switching profiles completes logging out (handled by handleLogout)
+          // Firebase handles identity via onAuthStateChanged
         }
       });
 
@@ -55,16 +74,12 @@
 
       isInitialized = true;
     } else {
-      // Re-entrant profile switch: Clear active timer countdowns and reload scopes
-      resetTimer();
-      resetCycleState();
-
-      // Refresh visual DOM collections with target profile's scopes
+      // Re-entrant login (e.g. Firebase token refresh):
+      // Refresh UI to reflect fresh Firestore data without resetting the timer
       renderTagsSelector();
       refreshSettingsView();
       refreshHistoryTagFilters();
 
-      // Re-sync notification toggle for new user
       if (window.FocusNotifications) window.FocusNotifications.syncToggleUI();
     }
 
@@ -82,14 +97,17 @@
    * Handle Profile Logout Cleanses
    */
   function handleLogout() {
-    const { resetTimer, resetCycleState } = window.FocusTimer;
-    // If timer is currently running, force kill
-    resetTimer();
-    resetCycleState();
+    // Reset initialization state so re-login fully re-bootstraps
+    isInitialized = false;
+
+    // Stop active timer if running
+    if (window.FocusTimer) {
+      window.FocusTimer.resetTimer();
+      window.FocusTimer.resetCycleState();
+    }
   }
 
-  // Boot application upon DOM Ready
-  document.addEventListener('DOMContentLoaded', () => {
+  function boot() {
     // Register Service Worker for PWA / offline + push notifications
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./service-worker.js').catch(err => {
@@ -101,5 +119,12 @@
       onLogin: handleLogin,
       onLogout: handleLogout
     });
-  });
+  }
+
+  // Boot application upon DOM Ready or immediately if already interactive/complete
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
 })();

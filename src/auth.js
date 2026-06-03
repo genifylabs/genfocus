@@ -1,7 +1,14 @@
 /**
  * GenFocus Authentication Module
- * Coordinates UI states for Login, Signup, profile validation, and session lifecycle.
+ * Coordinates Firebase Auth, Google OAuth popups, and Firestore real-time state transitions.
  */
+
+import {
+  auth,
+  onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup
+} from '../firebase.js';
 
 (function() {
   // DOM Elements
@@ -14,6 +21,14 @@
   const logoutBtn = document.getElementById('logout-btn');
   const activeUserDisplay = document.getElementById('active-user-display');
   const guestBtns = document.querySelectorAll('.guest-login-btn');
+  
+  // Google Auth & Loading Overlay elements
+  const googleBtns = document.querySelectorAll('.google-login-btn');
+  const loadingOverlay = document.getElementById('loading-overlay');
+  const loadingState = document.getElementById('loading-state');
+  const errorState = document.getElementById('error-state');
+  const errorMessage = document.getElementById('error-message');
+  const errorLogoutBtn = document.getElementById('error-logout-btn');
 
   /**
    * Creates and shows a premium inline error message in the form
@@ -51,6 +66,12 @@
     const isGuest = !username || username.toLowerCase() === 'guest';
     activeUserDisplay.textContent = isGuest ? 'Guest Mode' : username;
     
+    // Sync settings profile email display card if exists
+    const settingsEmailEl = document.getElementById('settings-profile-email');
+    if (settingsEmailEl) {
+      settingsEmailEl.textContent = isGuest ? 'Guest Mode' : username;
+    }
+
     const signupNudge = document.getElementById('guest-signup-nudge');
     if (signupNudge) {
       if (isGuest) {
@@ -94,9 +115,9 @@
     // Guest Signup Nudge Redirect
     const signupNudge = document.getElementById('guest-signup-nudge');
     if (signupNudge) {
-      signupNudge.addEventListener('click', (e) => {
+      signupNudge.addEventListener('click', async (e) => {
         e.preventDefault();
-        window.FocusStorage.logout();
+        await window.FocusStorage.logout();
         toggleView(false);
         clearFormErrors(loginForm);
         loginForm.classList.add('hidden');
@@ -106,21 +127,21 @@
       });
     }
 
-    // 2. Handle Signup Submission
+    // 2. Handle Signup Submission (Email + Password)
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearFormErrors(signupForm);
 
-      const username = document.getElementById('signup-username').value;
+      const email = document.getElementById('signup-email').value;
       const password = document.getElementById('signup-password').value;
       const confirmPassword = document.getElementById('signup-confirm-password').value;
 
-      if (username.length < 3) {
-        showFormError(signupForm, "Username must be at least 3 characters.");
+      if (!email.includes('@')) {
+        showFormError(signupForm, "Please enter a valid email address.");
         return;
       }
-      if (password.length < 4) {
-        showFormError(signupForm, "Password must be at least 4 characters.");
+      if (password.length < 6) {
+        showFormError(signupForm, "Password must be at least 6 characters.");
         return;
       }
       if (password !== confirmPassword) {
@@ -128,50 +149,51 @@
         return;
       }
 
-      const success = await window.FocusStorage.registerUser(username, password);
-      if (success) {
-        const loggedIn = await window.FocusStorage.loginUser(username, password);
-        if (loggedIn) {
-          const activeUser = window.FocusStorage.getCurrentUser();
-          updateActiveUserLayout(activeUser);
-          toggleView(true);
-          if (typeof onLogin === 'function') onLogin(activeUser);
-        }
-      } else {
-        showFormError(signupForm, "Username already taken on this device or in the database.");
+      const result = await window.FocusStorage.registerUser(email, password);
+      if (result !== true) {
+        showFormError(signupForm, result.details || "Registration failed.");
       }
     });
 
-    // 3. Handle Login Submission
+    // 3. Handle Login Submission (Email + Password)
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearFormErrors(loginForm);
 
-      const username = document.getElementById('login-username').value;
+      const email = document.getElementById('login-email').value;
       const password = document.getElementById('login-password').value;
 
-      const success = await window.FocusStorage.loginUser(username, password);
-      if (success) {
-        const activeUser = window.FocusStorage.getCurrentUser();
-        updateActiveUserLayout(activeUser);
-        toggleView(true);
-        if (typeof onLogin === 'function') onLogin(activeUser);
-      } else {
-        showFormError(loginForm, "Invalid username or password.");
+      const result = await window.FocusStorage.loginUser(email, password);
+      if (result !== true) {
+        showFormError(loginForm, result.details || "Invalid email or password.");
       }
     });
 
-    // 4. Handle Logout Button
-    logoutBtn.addEventListener('click', (e) => {
+    // 4. Handle Google Sign-In click
+    googleBtns.forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (e) {
+          console.error("Google Sign-in failed:", e);
+          const activeForm = signupForm.classList.contains('hidden') ? loginForm : signupForm;
+          showFormError(activeForm, `Google sign-in failed: ${e.message}`);
+        }
+      });
+    });
+
+    // 5. Handle Logout Button
+    logoutBtn.addEventListener('click', async (e) => {
       e.preventDefault();
-      window.FocusStorage.logout();
+      await window.FocusStorage.logout();
       toggleView(false);
       loginForm.reset();
       signupForm.reset();
       if (typeof onLogout === 'function') onLogout();
     });
 
-    // 5. Handle Guest Login buttons
+    // 6. Handle Guest Login buttons
     guestBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         window.FocusStorage.loginGuest();
@@ -181,31 +203,66 @@
       });
     });
 
-    // 6. Initial Session Check on Boot
-    (async function() {
-      if (window.FocusStorage.isGuest && window.FocusStorage.isGuest()) {
-        updateActiveUserLayout('Guest');
-        toggleView(true);
-        if (typeof onLogin === 'function') onLogin('Guest');
-      } else {
-        const existingUser = window.FocusStorage.getCurrentUser();
-        if (existingUser) {
-          // Since registered user storage is online-only, restore the session cache asynchronously first!
-          const success = await window.FocusStorage.restoreSession(existingUser);
-          if (success) {
-            updateActiveUserLayout(existingUser);
-            toggleView(true);
-            if (typeof onLogin === 'function') onLogin(existingUser);
-          } else {
-            // If the session restore fails (e.g. invalid config or offline), log out to keep app state clean
-            window.FocusStorage.logout();
-            toggleView(false);
+    // 7. Error state Logout handler
+    if (errorLogoutBtn) {
+      errorLogoutBtn.addEventListener('click', async () => {
+        loadingOverlay.classList.remove('active');
+        await window.FocusStorage.logout();
+      });
+    }
+
+    // 8. Core Auth State Listener
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Authenticated user path
+        loadingOverlay.classList.add('active');
+        loadingState.classList.remove('hidden');
+        errorState.classList.add('hidden');
+
+        try {
+          // If they signed up/logged in from guest mode, migrate their local guest data
+          if (window.FocusStorage.isGuest()) {
+            await window.FocusStorage.migrateGuestDataToFirestore(user.uid);
           }
+
+          // Fetch all Firestore documents and setup live listener triggers
+          window.FocusStorage.setupFirestoreListeners(
+            user.uid,
+            () => {
+              // Successfully connected and synced cache
+              loadingOverlay.classList.remove('active');
+              updateActiveUserLayout(user.email);
+              toggleView(true);
+              if (typeof onLogin === 'function') onLogin(user.email);
+            },
+            (error) => {
+              // Failed loading data (Firestore Security Rules, credentials, or offline)
+              loadingState.classList.add('hidden');
+              errorState.classList.remove('hidden');
+              errorMessage.textContent = `Sync Error: ${error.message || String(error)}`;
+            }
+          );
+        } catch (e) {
+          console.error("Auth state synchronization handler failed:", e);
+          loadingState.classList.add('hidden');
+          errorState.classList.remove('hidden');
+          errorMessage.textContent = `Init Error: ${e.message || String(e)}`;
+        }
+      } else {
+        // Unauthenticated user path
+        if (window.FocusStorage.isGuest()) {
+          // Keep active guest session
+          updateActiveUserLayout('Guest');
+          toggleView(true);
+          if (typeof onLogin === 'function') onLogin('Guest');
         } else {
+          // No active guest mode: push to Auth forms view
+          updateActiveUserLayout(null);
           toggleView(false);
+          if (typeof onLogout === 'function') onLogout();
         }
       }
-    })();
+    });
   }
 
   // Export to Global Namespace

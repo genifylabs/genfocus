@@ -1,6 +1,6 @@
 /**
  * GenFocus Settings Module
- * Manages timer config inputs, tag CRUD actions, and user profile selectors.
+ * Manages timer configuration settings, tag CRUD operations, and active account settings displays.
  */
 
 (function() {
@@ -15,9 +15,6 @@
   const tagNameInput = document.getElementById('tag-name-input');
   const tagColorInput = document.getElementById('tag-color-input');
   const settingsTagsList = document.getElementById('settings-tags-list');
-
-  const profileSelect = document.getElementById('profile-select');
-  const switchProfileBtn = document.getElementById('switch-profile-btn');
 
   // Callbacks
   let settingsChangedCallback = null;
@@ -76,20 +73,14 @@
   }
 
   /**
-   * Populate target profile usernames dropdown
+   * Sync active profile display info card
    */
   function loadProfiles() {
-    profileSelect.innerHTML = '';
-    const currentUser = window.FocusStorage.getCurrentUser();
-    const allUsers = window.FocusStorage.getUsers();
-    
-    allUsers.forEach(username => {
-      const opt = document.createElement('option');
-      opt.value = username;
-      opt.textContent = username + (username.toLowerCase() === currentUser?.toLowerCase() ? ' (Current)' : '');
-      opt.selected = username.toLowerCase() === currentUser?.toLowerCase();
-      profileSelect.appendChild(opt);
-    });
+    const settingsEmailEl = document.getElementById('settings-profile-email');
+    if (settingsEmailEl) {
+      const currentUser = window.FocusStorage.getCurrentUser();
+      settingsEmailEl.textContent = currentUser ? currentUser : 'Guest Mode';
+    }
   }
 
   /**
@@ -129,7 +120,7 @@
           <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
         </svg>
       `;
-      editBtn.addEventListener('click', () => {
+      editBtn.addEventListener('click', async () => {
         const newName = prompt(`Rename tag "${tag.name}" to:`, tag.name);
         if (newName !== null) {
           const trimmed = newName.trim();
@@ -151,7 +142,7 @@
             }
             return t;
           });
-          window.FocusStorage.saveTags(updatedTags);
+          await window.FocusStorage.saveTags(updatedTags);
           renderTagsCRUD();
           
           if (typeof settingsChangedCallback === 'function') {
@@ -174,9 +165,9 @@
             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
           </svg>
         `;
-        delBtn.addEventListener('click', () => {
+        delBtn.addEventListener('click', async () => {
           if (confirm(`Delete the custom tag "${tag.name}"? Sessions already completed using this tag will retain its logs.`)) {
-            const success = window.FocusStorage.deleteTag(tag.id);
+            const success = await window.FocusStorage.deleteTag(tag.id);
             if (success) {
               renderTagsCRUD();
               if (typeof settingsChangedCallback === 'function') {
@@ -195,26 +186,10 @@
     });
   }
 
-  function loadFirebaseConfig() {
-    // Update status badge
-    const statusBadge = document.getElementById('firebase-status-badge');
-    if (statusBadge) {
-      const statusText = statusBadge.querySelector('.status-text');
-      if (window.FocusFirebase.isConnected) {
-        statusBadge.className = 'firebase-status-badge status-connected';
-        if (statusText) statusText.textContent = 'Cloud Sync Connected';
-      } else {
-        statusBadge.className = 'firebase-status-badge status-disconnected';
-        if (statusText) statusText.textContent = 'Local-Only Mode';
-      }
-    }
-  }
-
   function refreshSettingsView() {
     loadDurations();
     renderTagsCRUD();
     loadProfiles();
-    loadFirebaseConfig();
   }
 
   function initSettings(callbacks = {}) {
@@ -264,14 +239,14 @@
     });
     
     // 2. Custom tag creation submission
-    createTagForm.addEventListener('submit', (e) => {
+    createTagForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const name = tagNameInput.value.trim();
       const color = tagColorInput.value;
       
       if (!name) return;
       
-      const newTag = window.FocusStorage.addTag(name, color);
+      const newTag = await window.FocusStorage.addTag(name, color);
       if (newTag) {
         createTagForm.reset();
         tagColorInput.value = '#a855f7';
@@ -287,32 +262,7 @@
       }
     });
     
-    // 3. User profile switching triggers
-    switchProfileBtn.addEventListener('click', () => {
-      const targetUser = profileSelect.value;
-      const currentUser = window.FocusStorage.getCurrentUser();
-      
-      if (targetUser.toLowerCase() === currentUser?.toLowerCase()) {
-        showToast("Profile already active", "error");
-        return;
-      }
-      
-      if (confirm(`Switch profile to "${targetUser}"? This will log you out of the current profile.`)) {
-        window.FocusStorage.logout();
-        
-        const loginUserField = document.getElementById('login-username');
-        if (loginUserField) {
-          loginUserField.value = targetUser;
-        }
-        
-        if (typeof profileSwitchCallback === 'function') {
-          profileSwitchCallback();
-        }
-        showToast(`Logged out. Please enter credentials for "${targetUser}"`);
-      }
-    });
-    
-    // 4. Settings Logout Button trigger
+    // 3. Settings Logout Button trigger
     const settingsLogoutBtn = document.getElementById('settings-logout-btn');
     if (settingsLogoutBtn) {
       settingsLogoutBtn.addEventListener('click', () => {
@@ -322,8 +272,6 @@
         }
       });
     }
-
-
 
     // Initial population
     refreshSettingsView();

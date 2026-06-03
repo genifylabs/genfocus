@@ -1,12 +1,11 @@
 /**
- * GenFocus Service Worker
- * - Caches all app assets for offline use
- * - Handles background push notification events
- * - On notification click: focuses or opens the GenFocus tab
- * - Updates cache on new app versions using stale-while-revalidate strategy
+ * GenFocus Service Worker v3
+ * - Network-first for all JS/HTML app shell files (ensures code changes always take effect)
+ * - Cache-first only for static assets (CSS, fonts, images)
+ * - Handles push notification events
  */
 
-const CACHE_NAME = 'genfocus-v1';
+const CACHE_NAME = 'genfocus-v4';
 
 // Assets to pre-cache on install
 const PRECACHE_URLS = [
@@ -15,6 +14,7 @@ const PRECACHE_URLS = [
   './style.css',
   './app.js',
   './manifest.json',
+  './firebase.js',
   './src/storage.js',
   './src/goal.js',
   './src/notifications.js',
@@ -32,11 +32,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_URLS);
-    }).then(() => self.skipWaiting())
+    }).then(() => self.skipWaiting()) // Take over immediately
   );
 });
 
-// ── Activate: clean up old caches ────────────────────────────────────────────
+// ── Activate: clean up ALL old caches immediately ────────────────────────────
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -44,44 +44,55 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames
           .filter((name) => name !== CACHE_NAME)
-          .map((name) => caches.delete(name))
+          .map((name) => {
+            console.log('[SW] Deleting old cache:', name);
+            return caches.delete(name);
+          })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()) // Claim all open tabs immediately
   );
 });
 
-// ── Fetch: cache-first for app shell, network-first for external ─────────────
+// ── Fetch: Network-first for JS/HTML, cache-first for CSS/fonts ──────────────
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // Only intercept same-origin requests (skip Google Fonts, CDNs etc)
+  // Skip non-same-origin requests (Firebase SDK CDN, Google Fonts, etc.)
   if (url.origin !== self.location.origin) return;
 
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Serve from cache, but also update cache in background (stale-while-revalidate)
-        const fetchPromise = fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(request, networkResponse.clone());
-            });
-          }
-          return networkResponse;
-        }).catch(() => {/* offline: silently fall back to cached */});
-        return cachedResponse;
-      }
-      // Not in cache: try network, then cache the response
-      return fetch(request).then((networkResponse) => {
-        if (!networkResponse || networkResponse.status !== 200) return networkResponse;
-        const responseClone = networkResponse.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+  const isScript = request.destination === 'script' || url.pathname.endsWith('.js');
+  const isDocument = request.destination === 'document' || url.pathname.endsWith('.html') || url.pathname === '/';
+
+  if (isScript || isDocument) {
+    // Network-first for JS and HTML: always get the freshest version
+    event.respondWith(
+      fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+        }
         return networkResponse;
-      });
-    })
-  );
+      }).catch(() => {
+        // Offline fallback: serve from cache if network fails
+        return caches.match(request);
+      })
+    );
+  } else {
+    // Cache-first for CSS, images, fonts
+    event.respondWith(
+      caches.match(request).then((cachedResponse) => {
+        if (cachedResponse) return cachedResponse;
+        return fetch(request).then((networkResponse) => {
+          if (!networkResponse || networkResponse.status !== 200) return networkResponse;
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          return networkResponse;
+        });
+      })
+    );
+  }
 });
 
 // ── Push Notifications ────────────────────────────────────────────────────────
@@ -96,7 +107,7 @@ self.addEventListener('push', (event) => {
 
   const options = {
     body: data.body || '',
-    icon: './manifest.json', // placeholder; replace with real icon path when available
+    icon: './manifest.json',
     badge: './manifest.json',
     silent: false,
     data: { url: self.registration.scope },
@@ -121,21 +132,17 @@ self.addEventListener('notificationclick', (event) => {
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      // If GenFocus is already open, focus that tab
       for (const client of clients) {
         if (client.url.startsWith(self.registration.scope) && 'focus' in client) {
           return client.focus();
         }
       }
-      // Otherwise open a new tab
       if (self.clients.openWindow) {
         return self.clients.openWindow(targetUrl);
       }
     })
   );
 });
-
-// ── Background Sync (future-proofing) ────────────────────────────────────────
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
