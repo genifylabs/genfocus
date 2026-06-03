@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="GenFocus">
   <title>GenFocus</title>
+  <link rel="icon" type="image/png" href="favicon.png" imgesizes="64x64">
   <!-- PWA Manifest -->
   <link rel="manifest" href="manifest.json">
   <!-- Google Fonts -->
@@ -39,14 +40,15 @@
 
         <!-- Signup Form -->
         <form id="signup-form" class="auth-form hidden">
-          <h2>Create Profile</h2>
+          <h2>Create Account</h2>
           <div class="input-group">
-            <label for="signup-email">Email Address</label>
+            <label for="signup-email">Email</label>
             <input class="neumorphic-inset" type="email" id="signup-email" required autocomplete="email" placeholder="Enter email">
           </div>
           <div class="input-group">
             <label for="signup-password">Password</label>
             <input class="neumorphic-inset" type="password" id="signup-password" required autocomplete="new-password" placeholder="Create password">
+            <div id="signup-password-feedback" class="password-feedback"></div>
           </div>
           <div class="input-group">
             <label for="signup-confirm-password">Confirm Password</label>
@@ -71,11 +73,14 @@
         <form id="login-form" class="auth-form">
           <h2>Welcome back</h2>
           <div class="input-group">
-            <label for="login-email">Email Address</label>
+            <label for="login-email">Email</label>
             <input class="neumorphic-inset" type="email" id="login-email" required autocomplete="email" placeholder="Enter email">
           </div>
           <div class="input-group">
-            <label for="login-password">Password</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <label for="login-password">Password</label>
+              <a href="#" id="forgot-password-link" class="auth-forgot-link" style="font-size: 0.8rem; color: var(--accent-color); text-decoration: none; font-weight: 500;">Forgot password?</a>
+            </div>
             <input class="neumorphic-inset" type="password" id="login-password" required autocomplete="current-password" placeholder="Enter password">
           </div>
           <button type="submit" class="btn btn-primary neumorphic-extruded">Continue</button>
@@ -90,7 +95,7 @@
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
             Try without an account
           </button>
-          <p class="auth-toggle">First time here? <a href="#" id="to-signup">Create Profile</a></p>
+          <p class="auth-toggle">First time here? <a href="#" id="to-signup">Create Account</a></p>
         </form>
       </div>
     </div>
@@ -120,7 +125,9 @@
           </button>
           <button class="nav-item neumorphic-flat" data-target="history">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+              <path d="M12 7v5l4 2"></path>
             </svg>
             <span class="nav-text">History</span>
           </button>
@@ -156,12 +163,19 @@
             </button>
           </div>
           <a href="#" id="guest-signup-nudge" class="guest-signup-nudge hidden">Save your progress — create a profile</a>
-          <div class="brand-signature">by <a href="https://meetgenify.vercel.app" target="_blank" rel="noopener noreferrer" class="genify-link">Genify</a></div>
+          <div class="brand-signature">GenFocus v1.0.0 · by <a href="https://meetgenify.vercel.app" target="_blank" rel="noopener noreferrer" class="genify-link">Genify</a></div>
         </div>
       </aside>
 
       <!-- Main Content Grid -->
       <main class="content-container">
+
+        <!-- Top Header / Bar containing Guest Mode Pill -->
+        <div style="display: flex; justify-content: flex-end; width: 100%; margin-bottom: 1.5rem;">
+          <div id="top-guest-badge" class="guest-badge hidden" style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.2); color: var(--accent-blue); padding: 0.3rem 0.75rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">
+            Guest Mode
+          </div>
+        </div>
 
         <!-- VIEW 1: TIMER SCREEN -->
         <section id="view-timer" class="view-section active">
@@ -259,7 +273,9 @@
               <!-- Dynamically populated entries -->
               <div class="empty-state">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                  <path d="M3 3v5h5"></path>
+                  <path d="M12 7v5l4 2"></path>
                 </svg>
                 <p>No sessions yet — your history will appear here after your first session.</p>
               </div>
@@ -270,7 +286,7 @@
         <!-- VIEW 3: DASHBOARD SCREEN -->
         <section id="view-dashboard" class="view-section">
           <div class="view-header">
-            <h2>Performance Metrics</h2>
+            <h2>Dashboard</h2>
             <p>Your focus at a glance.</p>
           </div>
 
@@ -338,7 +354,7 @@
         <!-- VIEW 4: SETTINGS SCREEN -->
         <section id="view-settings" class="view-section">
           <div class="view-header">
-            <h2>System Settings</h2>
+            <h2>Settings</h2>
             <p>Customize your experience</p>
           </div>
 
@@ -350,6 +366,9 @@
                   <input type="checkbox" id="settings-notifications" checked>
                   <span>Enable Browser Notifications</span>
                 </label>
+              </div>
+              <div id="notifications-blocked-warning" class="settings-help hidden" style="margin-top: 0.75rem; color: var(--accent-red); font-weight: 500; margin-bottom: 0;">
+                Notifications blocked — enable them in your browser settings
               </div>
             </div>
 
@@ -373,6 +392,13 @@
                   <label for="settings-daily-goal">Daily Goal (Sessions)</label>
                   <input class="neumorphic-inset" type="number" id="settings-daily-goal" min="1" max="24" value="4">
                 </div>
+              </div>
+              
+              <div class="checkbox-group neumorphic-inset" style="margin-bottom: 1.5rem;">
+                <label class="checkbox-label" for="settings-autostart">
+                  <input type="checkbox" id="settings-autostart">
+                  <span>Auto-start breaks and focus sessions automatically</span>
+                </label>
               </div>
               
               <!-- Save Row -->
@@ -417,8 +443,22 @@
                 <div class="profile-email-display neumorphic-inset" style="padding: 0.75rem 1.25rem; border-radius: 12px; font-weight: 500; font-size: 0.95rem; color: var(--text-color); flex-grow: 1; margin-right: 1rem; border: 1px solid var(--card-border); min-width: 200px; margin-bottom: 1rem;">
                   <span id="settings-profile-email">Guest Mode</span>
                 </div>
-                <button id="settings-logout-btn" class="btn btn-secondary neumorphic-extruded" style="border-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); margin-bottom: 1rem;">Log Out</button>
+                <button id="settings-logout-btn" class="btn btn-secondary neumorphic-extruded" style="border-color: rgba(239, 68, 68, 0.2); color: var(--accent-red); margin-bottom: 1rem; display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                  </svg>
+                  <span>Log Out</span>
+                </button>
               </div>
+            </div>
+
+            <!-- 4. PWA Installation Card -->
+            <div id="settings-pwa-card" class="settings-card neumorphic-extruded hidden">
+              <h3>Install GenFocus App</h3>
+              <p class="settings-help">Install GenFocus on your device for distraction-free focus sessions and offline support.</p>
+              <button id="settings-pwa-install-btn" class="btn btn-primary neumorphic-extruded" style="width: 100%; margin-top: 0.5rem;">Install App</button>
             </div>
 
 
@@ -472,11 +512,6 @@
             <h2>Welcome to GenFocus</h2>
             <p>Start a session. Stay focused. Build a streak.</p>
           </div>
-          <div class="onboarding-content">
-            <p class="onboarding-desc">
-              Start a session. Stay focused. Build a streak.
-            </p>
-          </div>
           <div class="modal-actions">
             <button type="button" id="onboarding-next-1" class="btn btn-primary neumorphic-extruded">Start focusing</button>
           </div>
@@ -501,7 +536,7 @@
             <p class="onboarding-help-text">We recommend 4 sessions (100 mins total) for balanced deep focus.</p>
           </div>
           <div class="modal-actions">
-            <button type="button" id="onboarding-skip-2" class="btn btn-secondary neumorphic-extruded">Skip</button>
+            <button type="button" id="onboarding-skip-2" class="btn btn-secondary neumorphic-extruded">Skip (Default: 4 sessions)</button>
             <button type="button" id="onboarding-next-2" class="btn btn-primary neumorphic-extruded">Next Step</button>
           </div>
         </div>
@@ -535,7 +570,7 @@
             </div>
           </div>
           <div class="modal-actions">
-            <button type="button" id="onboarding-skip-3" class="btn btn-secondary neumorphic-extruded">Skip</button>
+            <button type="button" id="onboarding-skip-3" class="btn btn-secondary neumorphic-extruded">Skip (Default: 25/5/15 mins)</button>
             <button type="button" id="onboarding-finish" class="btn btn-primary neumorphic-extruded">Start focusing</button>
           </div>
         </div>
@@ -595,33 +630,75 @@
       const banner  = document.getElementById('pwa-install-banner');
       const installBtn = document.getElementById('pwa-install-btn');
       const dismissBtn = document.getElementById('pwa-dismiss-btn');
+      const settingsPwaCard = document.getElementById('settings-pwa-card');
+      const settingsPwaInstallBtn = document.getElementById('settings-pwa-install-btn');
       let deferredPrompt = null;
 
-      if (localStorage.getItem('genfocus_pwa_dismissed')) return;
+      function hasCompletedSession() {
+        return localStorage.getItem('genfocus_completed_session') === '1';
+      }
+
+      function updateInstallUI() {
+        if (!deferredPrompt) {
+          if (banner) banner.classList.add('hidden');
+          if (settingsPwaCard) settingsPwaCard.classList.add('hidden');
+          return;
+        }
+
+        if (settingsPwaCard) {
+          settingsPwaCard.classList.remove('hidden');
+        }
+
+        const dismissed = localStorage.getItem('genfocus_pwa_dismissed') === '1';
+        if (banner) {
+          if (!dismissed && hasCompletedSession()) {
+            banner.classList.remove('hidden');
+          } else {
+            banner.classList.add('hidden');
+          }
+        }
+      }
 
       window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
-        banner.classList.remove('hidden');
+        updateInstallUI();
       });
 
+      async function triggerInstall() {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          localStorage.setItem('genfocus_pwa_dismissed', '1');
+        }
+        deferredPrompt = null;
+        updateInstallUI();
+      }
+
       if (installBtn) {
-        installBtn.addEventListener('click', async () => {
-          if (!deferredPrompt) return;
-          deferredPrompt.prompt();
-          const { outcome } = await deferredPrompt.userChoice;
-          deferredPrompt = null;
-          banner.classList.add('hidden');
-          if (outcome === 'accepted') localStorage.setItem('genfocus_pwa_dismissed', '1');
-        });
+        installBtn.addEventListener('click', triggerInstall);
+      }
+      if (settingsPwaInstallBtn) {
+        settingsPwaInstallBtn.addEventListener('click', triggerInstall);
       }
 
       if (dismissBtn) {
         dismissBtn.addEventListener('click', () => {
-          banner.classList.add('hidden');
+          if (banner) banner.classList.add('hidden');
           localStorage.setItem('genfocus_pwa_dismissed', '1');
         });
       }
+
+      window.FocusPWA = {
+        sessionCompleted: function() {
+          localStorage.setItem('genfocus_completed_session', '1');
+          updateInstallUI();
+        },
+        updateUI: updateInstallUI
+      };
+
+      setTimeout(updateInstallUI, 1000);
     })();
   </script>
 </body>

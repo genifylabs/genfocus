@@ -9,6 +9,7 @@
   const shortBreakInput = document.getElementById('settings-short-break');
   const longBreakInput = document.getElementById('settings-long-break');
   const dailyGoalInput = document.getElementById('settings-daily-goal');
+  const autoStartInput = document.getElementById('settings-autostart');
   const applyDurationsBtn = document.getElementById('save-durations-btn');
 
   const createTagForm = document.getElementById('create-tag-form');
@@ -66,6 +67,9 @@
     focusInput.value = config.focus;
     shortBreakInput.value = config.shortBreak;
     longBreakInput.value = config.longBreak;
+    if (autoStartInput) {
+      autoStartInput.checked = config.autoStart || false;
+    }
     // Sync daily goal input
     if (dailyGoalInput && window.FocusGoal) {
       dailyGoalInput.value = window.FocusGoal.getGoal();
@@ -218,7 +222,8 @@
       const settings = {
         focus: focusVal,
         shortBreak: shortVal,
-        longBreak: longVal
+        longBreak: longVal,
+        autoStart: autoStartInput ? autoStartInput.checked : false
       };
 
       window.FocusStorage.saveSettings(settings);
@@ -232,6 +237,18 @@
       }
 
       showToast('Settings applied successfully');
+
+      // Visual confirmation on the button itself
+      const originalText = applyDurationsBtn.textContent;
+      applyDurationsBtn.textContent = '✓ Settings Applied';
+      applyDurationsBtn.classList.add('btn-success');
+      applyDurationsBtn.disabled = true;
+
+      setTimeout(() => {
+        applyDurationsBtn.textContent = originalText;
+        applyDurationsBtn.classList.remove('btn-success');
+        applyDurationsBtn.disabled = false;
+      }, 1500);
 
       if (typeof settingsChangedCallback === 'function') {
         settingsChangedCallback('durations');

@@ -79,11 +79,17 @@
     timerTagContainer.innerHTML = '';
     const tags = window.FocusStorage.getTags();
     
-    if (!selectedTag || !tags.some(t => t.id === selectedTag.id)) {
-      selectedTag = tags[0] || null;
+    // Add default "No tag" option
+    const allTags = [
+      { id: 'tag-none', name: 'No tag (general focus)', color: '#64748b' },
+      ...tags
+    ];
+    
+    if (!selectedTag || !allTags.some(t => t.id === selectedTag.id)) {
+      selectedTag = allTags[0];
     }
     
-    tags.forEach(tag => {
+    allTags.forEach(tag => {
       const pill = document.createElement('button');
       pill.className = `tag-pill ${selectedTag && selectedTag.id === tag.id ? 'active' : ''}`;
       pill.dataset.id = tag.id;
@@ -137,10 +143,9 @@
     timerCountdown.textContent = displayString;
     updateProgressRing();
     
-    const modeText = mode === 'focus' ? 'Focus' : 'Break';
     document.title = state === 'running'
-      ? `[${displayString}] ${modeText} | GenFocus`
-      : `GenFocus | Deep work, made simple.`;
+      ? displayString
+      : 'GenFocus';
 
     const hintEl = document.getElementById('timer-idle-hint');
     if (hintEl) {
@@ -149,6 +154,31 @@
       } else {
         hintEl.classList.add('hidden');
       }
+    }
+  }
+
+  /**
+   * Update the timer subtitle dynamically based on state and mode
+   */
+  function updateStatusText() {
+    if (state === 'idle') {
+      if (mode === 'focus') {
+        timerStatus.textContent = 'Press Start Session to begin';
+      } else if (mode === 'shortBreak') {
+        timerStatus.textContent = 'Press Start Break to begin';
+      } else if (mode === 'longBreak') {
+        timerStatus.textContent = 'Press Start Break to begin';
+      }
+    } else if (state === 'running') {
+      if (mode === 'focus') {
+        timerStatus.textContent = 'Focusing...';
+      } else if (mode === 'shortBreak') {
+        timerStatus.textContent = 'Short Rest active';
+      } else if (mode === 'longBreak') {
+        timerStatus.textContent = 'Long Rest active';
+      }
+    } else if (state === 'paused') {
+      timerStatus.textContent = 'Session Paused';
     }
   }
 
@@ -168,15 +198,12 @@
     
     if (mode === 'focus') {
       timeLeft = settings.focus * 60;
-      timerStatus.textContent = 'Get Focused';
       viewTimerSection.className = 'view-section active accent-focus';
     } else if (mode === 'shortBreak') {
       timeLeft = settings.shortBreak * 60;
-      timerStatus.textContent = 'Short Rest';
       viewTimerSection.className = 'view-section active accent-shortBreak';
     } else if (mode === 'longBreak') {
       timeLeft = settings.longBreak * 60;
-      timerStatus.textContent = 'Deep Rest';
       viewTimerSection.className = 'view-section active accent-longBreak';
     }
     
@@ -193,8 +220,10 @@
     toggleBtn.textContent = mode === 'focus' ? 'Start Session' : 'Start Break';
     toggleBtn.className = 'btn btn-primary btn-large';
     viewTimerSection.classList.remove('timer-running');
+    viewTimerSection.classList.remove('timer-paused');
     
     updateTimerDisplay();
+    updateStatusText();
     
     if (typeof stateChangeCallback === 'function') {
       stateChangeCallback({ mode, state, timeLeft, totalDuration });
@@ -218,13 +247,17 @@
       intervalId = null;
       toggleBtn.textContent = 'Resume';
       viewTimerSection.classList.remove('timer-running');
+      viewTimerSection.classList.add('timer-paused');
     } else {
       state = 'running';
       toggleBtn.textContent = 'Pause';
       viewTimerSection.classList.add('timer-running');
+      viewTimerSection.classList.remove('timer-paused');
       
       intervalId = setInterval(tick, 1000);
     }
+    
+    updateStatusText();
     
     if (typeof stateChangeCallback === 'function') {
       stateChangeCallback({ mode, state, timeLeft, totalDuration });
@@ -263,6 +296,11 @@
       // Fire break-complete notification
       if (window.FocusNotifications) window.FocusNotifications.notifyBreakComplete();
       setMode('focus');
+      
+      const settings = window.FocusStorage.getSettings();
+      if (settings.autoStart) {
+        toggleTimer();
+      }
     }
   }
 
@@ -283,6 +321,11 @@
 
     window.FocusStorage.saveSession(sessionEntry);
 
+    // Notify PWA module that a session has been successfully logged
+    if (window.FocusPWA && window.FocusPWA.sessionCompleted) {
+      window.FocusPWA.sessionCompleted();
+    }
+
     noteModal.classList.remove('active');
 
     // Refresh daily goal progress bar immediately after logging
@@ -298,7 +341,10 @@
       setMode('shortBreak');
     }
 
-    toggleTimer();
+    const settings = window.FocusStorage.getSettings();
+    if (settings.autoStart) {
+      toggleTimer();
+    }
 
     if (typeof sessionLoggedCallback === 'function') {
       sessionLoggedCallback();
@@ -324,9 +370,11 @@
     
     totalDuration = timeLeft;
     viewTimerSection.classList.remove('timer-running');
+    viewTimerSection.classList.remove('timer-paused');
     toggleBtn.textContent = mode === 'focus' ? 'Start Session' : 'Start Break';
     
     updateTimerDisplay();
+    updateStatusText();
     
     if (typeof stateChangeCallback === 'function') {
       stateChangeCallback({ mode, state, timeLeft, totalDuration });
@@ -408,6 +456,20 @@
     
     skipNoteBtn.addEventListener('click', () => {
       handleLogSession(''); // empty note — no text fabricated
+    });
+
+    // 6. Spacebar shortcut to start/pause timer
+    window.addEventListener('keydown', (e) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        activeEl.isContentEditable
+      );
+      if (e.code === 'Space' && !isInput) {
+        e.preventDefault(); // Prevent page scrolling
+        toggleTimer();
+      }
     });
     
     setMode('focus');

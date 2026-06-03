@@ -157,6 +157,11 @@ body {
   100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
 }
 
+@keyframes timer-pulse-opacity {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
 /* --------------------------------------------------------------------------
    4. UI COMPONENTS (Buttons, Inputs, Cards)
    -------------------------------------------------------------------------- */
@@ -737,6 +742,10 @@ body {
   margin-bottom: 0.25rem;
 }
 
+.timer-paused #timer-countdown {
+  animation: timer-pulse-opacity 1.5s infinite ease-in-out;
+}
+
 #timer-status {
   font-size: 0.75rem;
   font-weight: 700;
@@ -1170,6 +1179,11 @@ body {
 /* --------------------------------------------------------------------------
    11. SETTINGS VIEW
    -------------------------------------------------------------------------- */
+#view-settings {
+  height: auto;
+  overflow: visible;
+}
+
 .settings-layout {
   display: grid;
   grid-template-columns: 1fr;
@@ -2020,6 +2034,53 @@ body {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Custom focus rings for keyboard accessibility (WCAG 2.4.7) */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+.nav-item:focus-visible,
+.mode-pill:focus-visible,
+.tag-pill:focus-visible,
+.btn:focus-visible {
+  outline: 2px solid var(--accent-color, #9d5cff) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 0 4px rgba(157, 92, 255, 0.25) !important;
+}
+
+/* Success button feedback state */
+.btn.btn-success {
+  background: var(--accent-green, #22c55e) !important;
+  color: #ffffff !important;
+  border-color: rgba(34, 197, 94, 0.4) !important;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.2) !important;
+}
+
+/* Password strength feedback text styles */
+.password-feedback {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  min-height: 1rem;
+  transition: color 0.2s ease;
+}
+.password-feedback.weak {
+  color: var(--accent-red) !important;
+}
+.password-feedback.medium {
+  color: var(--accent-orange) !important;
+}
+.password-feedback.strong {
+  color: var(--accent-green) !important;
+}
+
+/* Forgot password link styles */
+.auth-forgot-link:hover {
+  text-decoration: underline !important;
+  opacity: 0.9;
 }
 
 

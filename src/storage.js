@@ -189,14 +189,15 @@ function setupFirestoreListeners(uid, onReady, onError) {
       memoryCache.settings = {
         focus: data.focus || 25,
         shortBreak: data.shortBreak || 5,
-        longBreak: data.longBreak || 15
+        longBreak: data.longBreak || 15,
+        autoStart: data.autoStart || false
       };
       memoryCache.dailyGoal = data.dailyGoal || 4;
       memoryCache.onboarded = data.onboarded || false;
       memoryCache.notificationsEnabled = data.notificationsEnabled || false;
     } else {
       // Seed default settings on Firestore for a new user
-      memoryCache.settings = { focus: 25, shortBreak: 5, longBreak: 15 };
+      memoryCache.settings = { focus: 25, shortBreak: 5, longBreak: 15, autoStart: false };
       memoryCache.dailyGoal = 4;
       memoryCache.onboarded = false;
       memoryCache.notificationsEnabled = false;
@@ -273,7 +274,7 @@ async function migrateGuestDataToFirestore(uid) {
   const batch = writeBatch(db);
 
   // 1. Settings
-  const settings = guestSettings ? JSON.parse(guestSettings) : { focus: 25, shortBreak: 5, longBreak: 15 };
+  const settings = guestSettings ? JSON.parse(guestSettings) : { focus: 25, shortBreak: 5, longBreak: 15, autoStart: false };
   const dailyGoal = guestDailyGoal ? parseInt(guestDailyGoal, 10) : 4;
   const onboarded = guestOnboarded === 'true';
   const notificationsEnabled = guestNotifications === 'true';
@@ -283,6 +284,7 @@ async function migrateGuestDataToFirestore(uid) {
     focus: settings.focus,
     shortBreak: settings.shortBreak,
     longBreak: settings.longBreak,
+    autoStart: settings.autoStart || false,
     dailyGoal: dailyGoal,
     onboarded: onboarded,
     notificationsEnabled: notificationsEnabled
@@ -426,7 +428,7 @@ function deleteTag(tagId) {
 }
 
 function getSettings() {
-  const fallback = { focus: 25, shortBreak: 5, longBreak: 15 };
+  const fallback = { focus: 25, shortBreak: 5, longBreak: 15, autoStart: false };
   if (isGuest()) {
     return safeParse('genfocus_guest_settings', fallback);
   }
@@ -442,7 +444,8 @@ function saveSettings(settings) {
       setDoc(doc(db, "users", uid, "settings", "preferences"), {
         focus: settings.focus,
         shortBreak: settings.shortBreak,
-        longBreak: settings.longBreak
+        longBreak: settings.longBreak,
+        autoStart: settings.autoStart || false
       }, { merge: true }).catch(err => {
         console.error("Error saving settings to Firestore:", err);
       });

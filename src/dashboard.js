@@ -121,6 +121,20 @@
   function renderLast7DaysChart(sessions) {
     barChartContainer.innerHTML = '';
     
+    if (sessions.length === 0) {
+      barChartContainer.innerHTML = `
+        <div class="chart-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 180px; text-align: center; width: 100%;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-bottom: 0.75rem;">
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 220px; margin: 0; font-weight: 500;">No sessions completed yet. Log your first session to see your progress chart!</p>
+        </div>
+      `;
+      return;
+    }
+    
     // Create last 7 days timeline ending today
     const last7Days = [];
     const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -192,6 +206,19 @@
   function renderWeeklyTagBreakdown(sessions) {
     weeklyBreakdownContainer.innerHTML = '';
     
+    if (sessions.length === 0) {
+      weeklyBreakdownContainer.innerHTML = `
+        <div class="chart-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 180px; text-align: center; width: 100%;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-bottom: 0.75rem;">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 220px; margin: 0; font-weight: 500;">Tag your sessions to see a breakdown of your focus habits here!</p>
+        </div>
+      `;
+      return;
+    }
+    
     // Filter sessions in the last 7 days
     const nowTime = new Date().getTime();
     const weekAgoTime = nowTime - (7 * ONE_DAY_MS);
@@ -200,8 +227,12 @@
     
     if (weeklySessions.length === 0) {
       weeklyBreakdownContainer.innerHTML = `
-        <div class="empty-state" style="padding: 2rem 1rem;">
-          <p>No focus activity recorded this week.</p>
+        <div class="chart-empty-state" style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; min-height: 180px; text-align: center; width: 100%;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-bottom: 0.75rem;">
+            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+          </svg>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 220px; margin: 0; font-weight: 500;">No focus activity recorded this week.</p>
         </div>
       `;
       return;

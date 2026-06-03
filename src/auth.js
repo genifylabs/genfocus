@@ -7,7 +7,8 @@ import {
   auth,
   onAuthStateChanged,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  sendPasswordResetEmail
 } from '../firebase.js';
 
 (function() {
@@ -31,17 +32,22 @@ import {
   const errorLogoutBtn = document.getElementById('error-logout-btn');
 
   /**
-   * Creates and shows a premium inline error message in the form
+   * Creates and shows a premium inline error or success message in the form
    */
-  function showFormError(form, message) {
+  function showFormMessage(form, message, isSuccess = false) {
     clearFormErrors(form);
 
-    const errorBanner = document.createElement('div');
-    errorBanner.className = 'form-error-banner';
-    errorBanner.style.cssText = `
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      color: #ef4444;
+    const banner = document.createElement('div');
+    banner.className = 'form-error-banner'; // Keep class for easy clearing
+    
+    const bg = isSuccess ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)';
+    const border = isSuccess ? '1px solid rgba(34, 197, 94, 0.2)' : '1px solid rgba(239, 68, 68, 0.2)';
+    const color = isSuccess ? '#22c55e' : '#ef4444';
+
+    banner.style.cssText = `
+      background: ${bg};
+      border: ${border};
+      color: ${color};
       padding: 0.75rem 1rem;
       border-radius: 12px;
       font-size: 0.85rem;
@@ -50,9 +56,17 @@ import {
       text-align: center;
       animation: scale-in 0.25s ease;
     `;
-    errorBanner.textContent = message;
+    banner.textContent = message;
 
-    form.insertBefore(errorBanner, form.querySelector('.input-group'));
+    form.insertBefore(banner, form.querySelector('.input-group'));
+  }
+
+  function showFormError(form, message) {
+    showFormMessage(form, message, false);
+  }
+
+  function showFormSuccess(form, message) {
+    showFormMessage(form, message, true);
   }
 
   function clearFormErrors(form) {
@@ -64,12 +78,32 @@ import {
 
   function updateActiveUserLayout(username) {
     const isGuest = !username || username.toLowerCase() === 'guest';
-    activeUserDisplay.textContent = isGuest ? 'Guest Mode' : username;
+    
+    // Move Guest Mode out of footer user-badge
+    const userBadgeEl = document.querySelector('.user-badge');
+    if (userBadgeEl) {
+      if (isGuest) {
+        userBadgeEl.style.display = 'none';
+      } else {
+        userBadgeEl.style.display = 'flex';
+        activeUserDisplay.textContent = username;
+      }
+    }
     
     // Sync settings profile email display card if exists
     const settingsEmailEl = document.getElementById('settings-profile-email');
     if (settingsEmailEl) {
       settingsEmailEl.textContent = isGuest ? 'Guest Mode' : username;
+    }
+
+    // Toggle top guest mode badge
+    const topGuestBadge = document.getElementById('top-guest-badge');
+    if (topGuestBadge) {
+      if (isGuest) {
+        topGuestBadge.classList.remove('hidden');
+      } else {
+        topGuestBadge.classList.add('hidden');
+      }
     }
 
     const signupNudge = document.getElementById('guest-signup-nudge');
@@ -102,6 +136,11 @@ import {
       loginForm.classList.add('hidden');
       signupForm.classList.remove('hidden');
       signupForm.reset();
+      const passwordFeedback = document.getElementById('signup-password-feedback');
+      if (passwordFeedback) {
+        passwordFeedback.textContent = '';
+        passwordFeedback.className = 'password-feedback';
+      }
     });
 
     toLoginLink.addEventListener('click', (e) => {
@@ -127,21 +166,70 @@ import {
       });
     }
 
+    // Inline password strength feedback
+    const signupPasswordInput = document.getElementById('signup-password');
+    const passwordFeedbackEl = document.getElementById('signup-password-feedback');
+    if (signupPasswordInput && passwordFeedbackEl) {
+      signupPasswordInput.addEventListener('input', () => {
+        const val = signupPasswordInput.value;
+        if (!val) {
+          passwordFeedbackEl.textContent = '';
+          passwordFeedbackEl.className = 'password-feedback';
+          return;
+        }
+
+        const common = ['123456', 'password', '12345678', 'qwerty', '123456789', 'password123', 'admin123'];
+        if (common.includes(val.toLowerCase())) {
+          passwordFeedbackEl.textContent = '❌ Weak: This password is too common.';
+          passwordFeedbackEl.className = 'password-feedback weak';
+          return;
+        }
+
+        if (val.length < 8) {
+          passwordFeedbackEl.textContent = `⚠️ Weak: Too short (minimum 8 characters). Current: ${val.length}/8`;
+          passwordFeedbackEl.className = 'password-feedback weak';
+          return;
+        }
+
+        let score = 0;
+        if (/[A-Z]/.test(val)) score++;
+        if (/[0-9]/.test(val)) score++;
+        if (/[^A-Za-z0-9]/.test(val)) score++;
+
+        if (score === 0) {
+          passwordFeedbackEl.textContent = '⚠️ Weak: Try adding numbers, uppercase, or special characters.';
+          passwordFeedbackEl.className = 'password-feedback weak';
+        } else if (score < 3) {
+          passwordFeedbackEl.textContent = '🟡 Medium: Good, but add special characters or uppercase for extra strength.';
+          passwordFeedbackEl.className = 'password-feedback medium';
+        } else {
+          passwordFeedbackEl.textContent = '💚 Strong password.';
+          passwordFeedbackEl.className = 'password-feedback strong';
+        }
+      });
+    }
+
     // 2. Handle Signup Submission (Email + Password)
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       clearFormErrors(signupForm);
 
-      const email = document.getElementById('signup-email').value;
+      const email = document.getElementById('signup-email').value.trim();
       const password = document.getElementById('signup-password').value;
       const confirmPassword = document.getElementById('signup-confirm-password').value;
 
-      if (!email.includes('@')) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
         showFormError(signupForm, "Please enter a valid email address.");
         return;
       }
-      if (password.length < 6) {
-        showFormError(signupForm, "Password must be at least 6 characters.");
+      if (password.length < 8) {
+        showFormError(signupForm, "Password must be at least 8 characters.");
+        return;
+      }
+      const commonPasswords = ['123456', 'password', '12345678', 'qwerty', '123456789', 'password123', 'admin123'];
+      if (commonPasswords.includes(password.toLowerCase())) {
+        showFormError(signupForm, "This password is too common. Please choose a different one.");
         return;
       }
       if (password !== confirmPassword) {
@@ -160,14 +248,49 @@ import {
       e.preventDefault();
       clearFormErrors(loginForm);
 
-      const email = document.getElementById('login-email').value;
+      const email = document.getElementById('login-email').value.trim();
       const password = document.getElementById('login-password').value;
+
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        showFormError(loginForm, "Please enter a valid email address.");
+        return;
+      }
 
       const result = await window.FocusStorage.loginUser(email, password);
       if (result !== true) {
         showFormError(loginForm, result.details || "Invalid email or password.");
       }
     });
+
+    // Forgot Password Trigger
+    const forgotPasswordLink = document.getElementById('forgot-password-link');
+    if (forgotPasswordLink) {
+      forgotPasswordLink.addEventListener('click', async (e) => {
+        e.preventDefault();
+        clearFormErrors(loginForm);
+
+        const email = document.getElementById('login-email').value.trim();
+        if (!email) {
+          showFormError(loginForm, "Please enter your email address first so we can send a reset link.");
+          return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          showFormError(loginForm, "Please enter a valid email address.");
+          return;
+        }
+
+        try {
+          await sendPasswordResetEmail(auth, email);
+          showFormSuccess(loginForm, "Password reset email sent! Check your inbox.");
+        } catch (error) {
+          console.error("Forgot password reset failed:", error);
+          showFormError(loginForm, `Failed to send reset email: ${error.message || String(error)}`);
+        }
+      });
+    }
 
     // 4. Handle Google Sign-In click
     googleBtns.forEach(btn => {

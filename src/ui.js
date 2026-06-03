@@ -82,7 +82,9 @@
         : 'No focus sessions match your search or filters.';
       const iconMarkup = isHistoryEmpty
         ? `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
-             <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+             <path d="M3 3v5h5"></path>
+             <path d="M12 7v5l4 2"></path>
            </svg>`
         : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
              <circle cx="12" cy="12" r="10"></circle>
@@ -183,6 +185,15 @@
     const previousSelection = historyTagFilter.value;
     historyTagFilter.innerHTML = '<option value="all">All Tags</option>';
     
+    // Add default tag-none option
+    const optNone = document.createElement('option');
+    optNone.value = 'tag-none';
+    optNone.textContent = 'No tag (general focus)';
+    if (previousSelection === 'tag-none') {
+      optNone.selected = true;
+    }
+    historyTagFilter.appendChild(optNone);
+    
     const tags = window.FocusStorage.getTags();
     tags.forEach(tag => {
       const opt = document.createElement('option');
@@ -236,6 +247,14 @@
     
     historySearch.addEventListener('input', renderHistoryList);
     historyTagFilter.addEventListener('change', renderHistoryList);
+
+    // Guest Mode exit warning to prevent data loss
+    window.addEventListener('beforeunload', (e) => {
+      if (window.FocusStorage && window.FocusStorage.isGuest() && window.FocusStorage.getSessions().length > 0) {
+        e.preventDefault();
+        e.returnValue = ''; // Triggers browser leave confirmation dialog
+      }
+    });
     
     navigateToView('timer');
   }

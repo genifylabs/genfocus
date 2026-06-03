@@ -82,9 +82,20 @@
 
   // ── Toggle UI sync ──────────────────────────────────────────────────────────
 
+  function checkPermissionStatus() {
+    const warning = document.getElementById('notifications-blocked-warning');
+    if (!warning) return;
+    if ('Notification' in window && Notification.permission === 'denied') {
+      warning.classList.remove('hidden');
+    } else {
+      warning.classList.add('hidden');
+    }
+  }
+
   function syncToggleUI() {
     const toggle = document.getElementById('settings-notifications');
     if (toggle) toggle.checked = isEnabled();
+    checkPermissionStatus();
   }
 
   function revertToggle(state) {
@@ -117,6 +128,7 @@
       } else {
         setEnabled(false);
       }
+      checkPermissionStatus();
     });
   }
 
