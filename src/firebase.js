@@ -8,23 +8,13 @@
   const CONFIG_KEY = 'genfocus_firebase_config';
   let dbInstance = null;
   let isConnected = false;
+  let lastErrorInstance = null;
 
   function loadConfig() {
-    // 1. Check localStorage for UI-based configuration
-    try {
-      const stored = localStorage.getItem(CONFIG_KEY);
-      if (stored) {
-        return JSON.parse(stored);
-      }
-    } catch (e) {
-      console.error('Error loading Firebase config from localStorage:', e);
-    }
-
-    // 2. Fall back to window.FIREBASE_CONFIG (defined in firebase-config.js)
+    // Load directly and only from window.FIREBASE_CONFIG (defined manually in firebase-config.js)
     if (window.FIREBASE_CONFIG && isConfigValid(window.FIREBASE_CONFIG)) {
       return window.FIREBASE_CONFIG;
     }
-
     return null;
   }
 
@@ -52,8 +42,34 @@
       }
       firebase.initializeApp(config);
       
-      dbInstance = firebase.firestore();
+      const db = firebase.firestore();
+      
+      // Test connectivity and credentials validity
+      try {
+        // Querying a specific dummy doc requires "get" permission, not "list" (query) permission.
+        // This is compatible with secure Firestore rules that block root collection listing.
+        await db.collection('users').doc('_connection_test_').get({ source: 'server' });
+      } catch (error) {
+        // If the error message indicates an API Key issue, throw it.
+        const isKeyInvalid = error.message && (
+          error.message.includes('API key') || 
+          error.message.includes('apiKey') || 
+          error.message.includes('invalid') || 
+          error.message.includes('Invalid')
+        );
+        if (isKeyInvalid) {
+          console.error('Firebase Firestore configuration test failed (Invalid API Key):', error);
+          throw error;
+        } else {
+          // If it's a permission-denied or other rule error, it means we connected successfully
+          // to Firestore (valid project and API key), but rules restricted access. This is expected.
+          console.warn('Firebase Firestore server connected (access restricted by rules or offline). Proceeding.', error);
+        }
+      }
+      
+      dbInstance = db;
       isConnected = true;
+      lastErrorInstance = null;
 
       // Enable offline persistence
       dbInstance.enablePersistence({ synchronizeTabs: true })
@@ -65,10 +81,11 @@
           }
         });
 
-      console.log('Firebase Cloud Sync: Connected and configured successfully.');
+      console.log('Firebase Cloud Sync: Connected and configured successfully from firebase-config.js.');
       return true;
     } catch (e) {
       console.error('Firebase initialization failed:', e);
+      lastErrorInstance = e;
       dbInstance = null;
       isConnected = false;
       return false;
@@ -76,25 +93,22 @@
   }
 
   function saveConfig(config) {
-    if (!config || !isConfigValid(config)) return false;
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-    
-    // If firebase was already initialized, we must reload the page to re-initialize with new config safely.
-    const reInitSuccess = init();
-    return reInitSuccess;
+    // Configuration is manual only for security reasons.
+    return init();
   }
 
   function clearConfig() {
-    localStorage.removeItem(CONFIG_KEY);
+    // Configuration is manual only for security reasons.
     dbInstance = null;
     isConnected = false;
-    console.log('Firebase Cloud Sync: Configuration cleared. App reverted to Local-Only Mode.');
+    console.log('Firebase Cloud Sync: Disconnected. App reverted to Local-Only Mode until reload.');
   }
 
   // Export to Global Namespace
   window.FocusFirebase = {
     get db() { return dbInstance; },
     get isConnected() { return isConnected; },
+    get lastError() { return lastErrorInstance; },
     init,
     saveConfig,
     clearConfig,

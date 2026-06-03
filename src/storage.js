@@ -1,15 +1,15 @@
 /**
  * GenFocus Storage Module
  * Handles local-first multi-profile storage and Firebase Firestore syncing.
- * - Logged-in users: scoped to localStorage (persistent) and Firestore (cloud sync).
+ * - Logged-in users: scoped to in-memory session cache (ephemeral) and Firestore (cloud sync).
  * - Guest mode: scoped to sessionStorage (ephemeral, tab-scoped).
+ * - Local storage is bypassed entirely for registered users to ensure no local data footprint.
  * All keys use the `genfocus_` prefix.
  */
 
 (function() {
   // Key Constants
   const KEYS = {
-    USERS: 'genfocus_users',
     CURRENT_USER: 'genfocus_current_user',
     GUEST_MODE: 'genfocus_guest_mode',
   };
@@ -22,6 +22,25 @@
     { id: 'tag-health', name: 'Health', color: '#22c55e', isDefault: true }
   ];
 
+  // In-Memory cache for registered users
+  let memoryCache = {
+    settings: null,
+    tags: null,
+    sessions: null,
+    dailyGoal: null,
+    onboarded: null,
+    notificationsEnabled: null
+  };
+
+  function clearMemoryCache() {
+    memoryCache.settings = null;
+    memoryCache.tags = null;
+    memoryCache.sessions = null;
+    memoryCache.dailyGoal = null;
+    memoryCache.onboarded = null;
+    memoryCache.notificationsEnabled = null;
+  }
+
   // ── Guest Mode Helpers ──────────────────────────────────────────────────────
 
   function isGuest() {
@@ -30,7 +49,7 @@
 
   function loginGuest() {
     sessionStorage.setItem(KEYS.GUEST_MODE, 'true');
-    // Seed fresh guest data if not already present
+    // Seed fresh guest data if not already present in sessionStorage
     if (!sessionStorage.getItem('genfocus_guest_settings')) {
       sessionStorage.setItem('genfocus_guest_settings', JSON.stringify({ focus: 25, shortBreak: 5, longBreak: 15 }));
     }
@@ -46,34 +65,21 @@
     sessionStorage.clear();
   }
 
-  // Unified get/set that routes to sessionStorage (guest) or localStorage (user)
-  function getItem(key) {
-    return isGuest() ? sessionStorage.getItem(key) : localStorage.getItem(key);
-  }
-
-  function setItem(key, value) {
-    if (isGuest()) {
-      sessionStorage.setItem(key, value);
-    } else {
-      localStorage.setItem(key, value);
-    }
-  }
-
-  // Helper to safe-parse JSON
+  // Helper to safe-parse JSON for Guest mode
   function safeParse(key, fallback) {
-    const data = getItem(key);
+    const data = sessionStorage.getItem(key);
     if (!data) return fallback;
     try {
       return JSON.parse(data);
     } catch (e) {
-      console.error(`Error parsing storage key "${key}":`, e);
+      console.error(`Error parsing session storage key "${key}":`, e);
       return fallback;
     }
   }
 
-  // Helper to save JSON
+  // Helper to save JSON for Guest mode
   function safeSave(key, data) {
-    setItem(key, JSON.stringify(data));
+    sessionStorage.setItem(key, JSON.stringify(data));
   }
 
   /* ==========================================================================
@@ -81,12 +87,14 @@
      ========================================================================== */
 
   function getUsers() {
-    const data = localStorage.getItem(KEYS.USERS);
-    try { return data ? Object.keys(JSON.parse(data)) : []; } catch (e) { return []; }
+    // Registered profile listing from local storage is disabled for security.
+    // Return only active logged-in profile if present.
+    const current = getCurrentUser();
+    return (current && current !== 'Guest') ? [current] : [];
   }
 
   /**
-   * Registers a user locally and in Firestore (if connected).
+   * Registers a user in Firestore (online-only).
    * @param {string} username
    * @param {string} password
    * @returns {Promise<boolean>}
@@ -97,7 +105,7 @@
 
     const userLower = trimmedUser.toLowerCase();
 
-    // 1. Check Firestore first if online to prevent duplicate username registration globally
+    // Requires database connection to register
     if (window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
       try {
         const userDoc = await window.FocusFirebase.db.collection('users').doc(userLower).get();
@@ -105,43 +113,34 @@
           console.log(`Registration failed: Username "${trimmedUser}" taken in Firestore.`);
           return false;
         }
-      } catch (e) {
-        console.warn('Firestore availability check failed during registration. Falling back to local check.', e);
-      }
-    }
 
-    // 2. Check local database
-    const raw = localStorage.getItem(KEYS.USERS);
-    const users = raw ? JSON.parse(raw) : {};
-    if (users[userLower]) return false;
-
-    // 3. Register locally (WITHOUT PASSWORD!)
-    users[userLower] = { username: trimmedUser, createdAt: new Date().toISOString() };
-    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-    initializeUserData(trimmedUser);
-
-    // 4. Register in Firestore (if connected)
-    if (window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
-      try {
+        // Save credentials and initial defaults directly and only online in Firestore
         await window.FocusFirebase.db.collection('users').doc(userLower).set({
           username: trimmedUser,
           password: password,
           createdAt: new Date().toISOString(),
           settings: { focus: 25, shortBreak: 5, longBreak: 15 },
           tags: PRESET_TAGS,
-          dailyGoal: 4
+          dailyGoal: 4,
+          onboarded: false,
+          notificationsEnabled: false
         });
+        // Migrate any guest data to this new account
+        await syncLocalToCloud(trimmedUser);
         console.log(`Registered and synced "${trimmedUser}" to Firestore.`);
+        return true;
       } catch (e) {
         console.error('Error registering user in Firestore:', e);
+        return false;
       }
     }
 
-    return true;
+    console.warn('Cannot register: Firebase is disconnected.');
+    return false;
   }
 
   /**
-   * Logs in a user, pulling settings/sessions from Firestore if connected.
+   * Logs in a user, pulling settings/sessions from Firestore and loading into memory.
    * @param {string} username
    * @param {string} password
    * @returns {Promise<boolean>}
@@ -150,150 +149,154 @@
     const trimmedUser = username.trim();
     const userLower = trimmedUser.toLowerCase();
 
-    // 1. If Firestore is connected, check cloud credentials first
+    // Requires database connection to log in
     if (window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
       try {
         const userDoc = await window.FocusFirebase.db.collection('users').doc(userLower).get();
         if (userDoc.exists) {
           const userData = userDoc.data();
           if (userData.password === password) {
-            // Save to current user session
-            localStorage.setItem(KEYS.CURRENT_USER, userData.username);
+            // Save active session username in sessionStorage for security, not localStorage
+            sessionStorage.setItem(KEYS.CURRENT_USER, userData.username);
             sessionStorage.removeItem(KEYS.GUEST_MODE);
 
-            // Register username in local users list if not present (WITHOUT PASSWORD!)
-            const raw = localStorage.getItem(KEYS.USERS);
-            const users = raw ? JSON.parse(raw) : {};
-            if (!users[userLower]) {
-              users[userLower] = { username: userData.username, createdAt: userData.createdAt || new Date().toISOString() };
-              localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-            }
+            // Populate settings/tags/onboarding in memory cache
+            memoryCache.settings = userData.settings || { focus: 25, shortBreak: 5, longBreak: 15 };
+            memoryCache.tags = userData.tags || PRESET_TAGS;
+            memoryCache.dailyGoal = userData.dailyGoal !== undefined ? userData.dailyGoal : 4;
+            memoryCache.onboarded = userData.onboarded === true;
+            memoryCache.notificationsEnabled = userData.notificationsEnabled === true;
 
-            // Sync down Settings, Tags, and Goals to localStorage
-            if (userData.settings) {
-              localStorage.setItem(`genfocus_${userLower}_settings`, JSON.stringify(userData.settings));
-            }
-            if (userData.tags) {
-              localStorage.setItem(`genfocus_${userLower}_tags`, JSON.stringify(userData.tags));
-            }
-            if (userData.dailyGoal !== undefined) {
-              localStorage.setItem(`genfocus_${userLower}_dailygoal`, String(userData.dailyGoal));
-            }
-
-            // Sync down Sessions
+            // Load and populate Sessions
             const sessionsSnap = await window.FocusFirebase.db.collection('users').doc(userLower).collection('sessions').orderBy('date', 'asc').get();
             const sessions = [];
             sessionsSnap.forEach(doc => {
               sessions.push(doc.data());
             });
-            localStorage.setItem(`genfocus_${userLower}_sessions`, JSON.stringify(sessions));
+            memoryCache.sessions = sessions;
 
-            console.log(`Logged in and fully synced settings/sessions from Firestore for "${userData.username}".`);
+            console.log(`Logged in and populated memory cache from Firestore for "${userData.username}".`);
             return true;
           } else {
-            console.log('Login failed: Invalid password in Firestore.');
+            console.log('Login failed: Invalid password.');
             return false;
           }
         }
       } catch (e) {
-        console.warn('Firestore login check failed. Falling back to local offline check.', e);
+        console.error('Firestore login check failed:', e);
+        return false;
       }
     }
 
-    // 2. Fall back to localStorage login (offline or local-only)
-    const raw = localStorage.getItem(KEYS.USERS);
-    const users = raw ? JSON.parse(raw) : {};
-
-    if (!users[userLower]) return false;
-
-    // Offline mode: since we don't store passwords locally, we allow logging in if the profile exists.
-    localStorage.setItem(KEYS.CURRENT_USER, users[userLower].username);
-    sessionStorage.removeItem(KEYS.GUEST_MODE); // clear any guest session
-
-    // If we are now online but didn't have this user in Firestore yet, sync local profile to cloud
-    if (window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
-      syncLocalToCloud(users[userLower].username);
-    }
-
-    return true;
+    console.warn('Cannot login: Firebase is disconnected.');
+    return false;
   }
 
   function getCurrentUser() {
     if (isGuest()) return 'Guest';
-    return localStorage.getItem(KEYS.CURRENT_USER);
+    return sessionStorage.getItem(KEYS.CURRENT_USER);
   }
 
   function logout() {
     if (isGuest()) {
       logoutGuest();
     } else {
-      localStorage.removeItem(KEYS.CURRENT_USER);
+      sessionStorage.removeItem(KEYS.CURRENT_USER);
+      clearMemoryCache();
     }
   }
 
-  function initializeUserData(username) {
+  /**
+   * Restores session cache asynchronously from Firestore on refresh/re-entry.
+   * @param {string} username
+   * @returns {Promise<boolean>}
+   */
+  async function restoreSession(username) {
+    if (!username || username === 'Guest') return true;
     const userLower = username.toLowerCase();
-    const defaultSettings = { focus: 25, shortBreak: 5, longBreak: 15 };
-    localStorage.setItem(`genfocus_${userLower}_settings`, JSON.stringify(defaultSettings));
-    localStorage.setItem(`genfocus_${userLower}_tags`, JSON.stringify(PRESET_TAGS));
-    localStorage.setItem(`genfocus_${userLower}_sessions`, JSON.stringify([]));
-    localStorage.setItem(`genfocus_${userLower}_dailygoal`, '4');
+
+    if (window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+      try {
+        const userDoc = await window.FocusFirebase.db.collection('users').doc(userLower).get();
+        if (userDoc.exists) {
+          const userData = userDoc.data();
+          memoryCache.settings = userData.settings || { focus: 25, shortBreak: 5, longBreak: 15 };
+          memoryCache.tags = userData.tags || PRESET_TAGS;
+          memoryCache.dailyGoal = userData.dailyGoal !== undefined ? userData.dailyGoal : 4;
+          memoryCache.onboarded = userData.onboarded === true;
+          memoryCache.notificationsEnabled = userData.notificationsEnabled === true;
+
+          const sessionsSnap = await window.FocusFirebase.db.collection('users').doc(userLower).collection('sessions').orderBy('date', 'asc').get();
+          const sessions = [];
+          sessionsSnap.forEach(doc => {
+            sessions.push(doc.data());
+          });
+          memoryCache.sessions = sessions;
+          console.log(`Session cache restored from Firestore for "${username}".`);
+          return true;
+        }
+      } catch (e) {
+        console.error('Error restoring session from Firestore:', e);
+      }
+    }
+    return false;
   }
 
   /* ==========================================================================
      USER-SCOPED DATA (Sessions, Tags, Settings)
      ========================================================================== */
 
-  function getScopedKey(keyName) {
-    if (isGuest()) return `genfocus_guest_${keyName}`;
-    const currentUser = localStorage.getItem(KEYS.CURRENT_USER);
-    if (!currentUser) throw new Error('No active user logged in.');
-    return `genfocus_${currentUser.toLowerCase()}_${keyName}`;
-  }
-
   function getSessions() {
-    try {
-      return safeParse(getScopedKey('sessions'), []);
-    } catch (e) {
-      return [];
+    if (isGuest()) {
+      return safeParse('genfocus_guest_sessions', []);
     }
+    return memoryCache.sessions || [];
   }
 
   function saveSession(session) {
-    const sessions = getSessions();
     const newSession = {
       id: `session-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       ...session
     };
-    sessions.push(newSession);
-    safeSave(getScopedKey('sessions'), sessions);
 
-    // Sync to Firestore
-    const user = getCurrentUser();
-    if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
-      window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).collection('sessions').doc(newSession.id).set(newSession)
-        .catch(e => console.error('Error saving session to Firestore:', e));
+    if (isGuest()) {
+      const sessions = getSessions();
+      sessions.push(newSession);
+      safeSave('genfocus_guest_sessions', sessions);
+    } else {
+      if (!memoryCache.sessions) memoryCache.sessions = [];
+      memoryCache.sessions.push(newSession);
+
+      // Sync directly to Firestore
+      const user = getCurrentUser();
+      if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+        window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).collection('sessions').doc(newSession.id).set(newSession)
+          .catch(e => console.error('Error saving session to Firestore:', e));
+      }
     }
 
     return newSession;
   }
 
   function getTags() {
-    try {
-      return safeParse(getScopedKey('tags'), PRESET_TAGS);
-    } catch (e) {
-      return PRESET_TAGS;
+    if (isGuest()) {
+      return safeParse('genfocus_guest_tags', PRESET_TAGS);
     }
+    return memoryCache.tags || PRESET_TAGS;
   }
 
   function saveTags(tags) {
-    safeSave(getScopedKey('tags'), tags);
-
-    // Sync to Firestore
-    const user = getCurrentUser();
-    if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
-      window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ tags })
-        .catch(e => console.error('Error syncing tags to Firestore:', e));
+    if (isGuest()) {
+      safeSave('genfocus_guest_tags', tags);
+    } else {
+      memoryCache.tags = tags;
+      
+      // Sync directly to Firestore
+      const user = getCurrentUser();
+      if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+        window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ tags })
+          .catch(e => console.error('Error syncing tags to Firestore:', e));
+      }
     }
   }
 
@@ -329,21 +332,92 @@
 
   function getSettings() {
     const fallback = { focus: 25, shortBreak: 5, longBreak: 15 };
-    try {
-      return safeParse(getScopedKey('settings'), fallback);
-    } catch (e) {
-      return fallback;
+    if (isGuest()) {
+      return safeParse('genfocus_guest_settings', fallback);
     }
+    return memoryCache.settings || fallback;
   }
 
   function saveSettings(settings) {
-    safeSave(getScopedKey('settings'), settings);
+    if (isGuest()) {
+      safeSave('genfocus_guest_settings', settings);
+    } else {
+      memoryCache.settings = settings;
 
-    // Sync to Firestore
+      // Sync directly to Firestore
+      const user = getCurrentUser();
+      if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+        window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ settings })
+          .catch(e => console.error('Error syncing settings to Firestore:', e));
+      }
+    }
+  }
+
+  function getDailyGoal() {
+    if (isGuest()) {
+      const raw = sessionStorage.getItem('genfocus_guest_dailygoal');
+      const parsed = parseInt(raw, 10);
+      return !isNaN(parsed) && parsed >= 1 ? parsed : 4;
+    }
+    return memoryCache.dailyGoal !== null && memoryCache.dailyGoal !== undefined ? memoryCache.dailyGoal : 4;
+  }
+
+  function saveDailyGoal(val) {
+    if (isGuest()) {
+      sessionStorage.setItem('genfocus_guest_dailygoal', String(val));
+    } else {
+      memoryCache.dailyGoal = val;
+      // Sync directly to Firestore
+      const user = getCurrentUser();
+      if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+        window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ dailyGoal: val })
+          .catch(e => console.error('Error syncing daily goal to Firestore:', e));
+      }
+    }
+  }
+
+  function isOnboarded() {
     const user = getCurrentUser();
-    if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
-      window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ settings })
-        .catch(e => console.error('Error syncing settings to Firestore:', e));
+    if (!user) return true;
+    if (isGuest()) {
+      return sessionStorage.getItem('genfocus_guest_onboarded') === 'true';
+    }
+    return memoryCache.onboarded === true;
+  }
+
+  function markOnboarded() {
+    const user = getCurrentUser();
+    if (!user) return;
+    if (isGuest()) {
+      sessionStorage.setItem('genfocus_guest_onboarded', 'true');
+    } else {
+      memoryCache.onboarded = true;
+      // Sync directly to Firestore
+      if (window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+        window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ onboarded: true })
+          .catch(e => console.error('Error syncing onboarded status to Firestore:', e));
+      }
+    }
+  }
+
+  function getNotificationPreference() {
+    if (isGuest()) {
+      return sessionStorage.getItem('genfocus_guest_notifications') === 'true';
+    }
+    return memoryCache.notificationsEnabled === true;
+  }
+
+  function saveNotificationPreference(bool) {
+    if (isGuest()) {
+      sessionStorage.setItem('genfocus_guest_notifications', bool ? 'true' : 'false');
+    } else {
+      memoryCache.notificationsEnabled = bool;
+      // Sync directly to Firestore
+      const user = getCurrentUser();
+      if (user && user !== 'Guest' && window.FocusFirebase && window.FocusFirebase.isConnected && window.FocusFirebase.db) {
+        window.FocusFirebase.db.collection('users').doc(user.toLowerCase()).update({ notificationsEnabled: bool })
+          .catch(e => console.error('Error syncing notifications preference to Firestore:', e));
+      }
     }
   }
 
@@ -352,7 +426,8 @@
      ========================================================================== */
 
   /**
-   * Syncs the entire offline local storage data of a profile to Firestore.
+   * Syncs the entire offline local storage data of a profile to Firestore in chunks of 500.
+   * (Maintained for backward compatibility or initial migration purposes)
    * @param {string} username
    */
   async function syncLocalToCloud(username) {
@@ -361,22 +436,15 @@
     if (!db || !window.FocusFirebase.isConnected) return;
 
     try {
-      const settings = safeParse(`genfocus_${userLower}_settings`, { focus: 25, shortBreak: 5, longBreak: 15 });
-      const tags = safeParse(`genfocus_${userLower}_tags`, PRESET_TAGS);
-      const rawSessions = localStorage.getItem(`genfocus_${userLower}_sessions`);
-      const sessions = rawSessions ? JSON.parse(rawSessions) : [];
-      
-      const rawGoal = localStorage.getItem(`genfocus_${userLower}_dailygoal`);
-      const dailyGoal = parseInt(rawGoal, 10) || 4;
-
-      const rawUsers = localStorage.getItem(KEYS.USERS);
-      const users = rawUsers ? JSON.parse(rawUsers) : {};
-      const createdAt = users[userLower] ? users[userLower].createdAt : new Date().toISOString();
+      // Pull only guest data for initial migration sync if they decide to sign up
+      const settings = safeParse('genfocus_guest_settings', { focus: 25, shortBreak: 5, longBreak: 15 });
+      const tags = safeParse('genfocus_guest_tags', PRESET_TAGS);
+      const sessions = safeParse('genfocus_guest_sessions', []);
+      const dailyGoal = parseInt(sessionStorage.getItem('genfocus_guest_dailygoal'), 10) || 4;
 
       // Avoid overwriting credentials in Firestore during sync
       const userDoc = await db.collection('users').doc(userLower).get();
       if (userDoc.exists) {
-        // Only merge settings, tags, and dailyGoal, leaving password intact
         await db.collection('users').doc(userLower).set({
           username: username,
           settings: settings,
@@ -384,51 +452,50 @@
           dailyGoal: dailyGoal
         }, { merge: true });
       } else {
-        // Create new document with blank password
         await db.collection('users').doc(userLower).set({
           username: username,
           password: '',
-          createdAt: createdAt,
+          createdAt: new Date().toISOString(),
           settings: settings,
           tags: tags,
-          dailyGoal: dailyGoal
+          dailyGoal: dailyGoal,
+          onboarded: true,
+          notificationsEnabled: false
         });
       }
 
-      // Batch write sessions to reduce database request overhead
+      // Chunk batch write sessions to prevent exceeding Firestore 500 write operations limit
       if (sessions.length > 0) {
-        const batch = db.batch();
-        sessions.forEach(session => {
-          const sessionRef = db.collection('users').doc(userLower).collection('sessions').doc(session.id);
-          batch.set(sessionRef, session);
-        });
-        await batch.commit();
+        const chunkSize = 400; // safe limit
+        for (let i = 0; i < sessions.length; i += chunkSize) {
+          const chunk = sessions.slice(i, i + chunkSize);
+          const batch = db.batch();
+          chunk.forEach(session => {
+            const sessionRef = db.collection('users').doc(userLower).collection('sessions').doc(session.id);
+            batch.set(sessionRef, session);
+          });
+          await batch.commit();
+        }
       }
 
-      console.log(`Synced all local data for "${username}" to Firestore.`);
+      console.log(`Synced guest data for "${username}" to Firestore.`);
     } catch (e) {
-      console.error(`Failed to sync local data for "${username}" to Firestore:`, e);
+      console.error(`Failed to sync data for "${username}" to Firestore:`, e);
     }
   }
 
-  // Clean up any passwords stored in localStorage under genfocus_users
+  // Wipes all user related data from localStorage completely to comply with security requirements.
   function cleanLocalCredentials() {
     try {
-      const raw = localStorage.getItem(KEYS.USERS);
-      if (raw) {
-        const users = JSON.parse(raw);
-        let modified = false;
-        for (const key in users) {
-          if (users[key] && users[key].hasOwnProperty('password')) {
-            delete users[key].password;
-            modified = true;
-          }
-        }
-        if (modified) {
-          localStorage.setItem(KEYS.USERS, JSON.stringify(users));
-          console.log('GenFocus Storage: Cleaned up existing password credentials from localStorage.');
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('genfocus_') && key !== 'genfocus_pwa_dismissed') {
+          keysToRemove.push(key);
         }
       }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      console.log('GenFocus Storage: Cleaned all local user data from localStorage.');
     } catch (e) {
       console.error('Error cleaning up local credentials:', e);
     }
@@ -454,6 +521,13 @@
     deleteTag,
     getSettings,
     saveSettings,
-    syncLocalToCloud
+    syncLocalToCloud,
+    restoreSession,
+    getDailyGoal,
+    saveDailyGoal,
+    isOnboarded,
+    markOnboarded,
+    getNotificationPreference,
+    saveNotificationPreference
   };
 })();

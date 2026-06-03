@@ -30,19 +30,12 @@
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
-  function onboardingKey() {
-    const user = window.FocusStorage.getCurrentUser();
-    return user ? `genfocus_${user.toLowerCase()}_onboarded` : null;
-  }
-
   function isOnboarded() {
-    const key = onboardingKey();
-    return key ? localStorage.getItem(key) === 'true' : true;
+    return window.FocusStorage.isOnboarded();
   }
 
   function markOnboarded() {
-    const key = onboardingKey();
-    if (key) localStorage.setItem(key, 'true');
+    window.FocusStorage.markOnboarded();
   }
 
   function showStep(index) {

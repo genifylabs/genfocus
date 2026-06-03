@@ -182,20 +182,30 @@
     });
 
     // 6. Initial Session Check on Boot
-    if (window.FocusStorage.isGuest && window.FocusStorage.isGuest()) {
-      updateActiveUserLayout('Guest');
-      toggleView(true);
-      if (typeof onLogin === 'function') onLogin('Guest');
-    } else {
-      const existingUser = window.FocusStorage.getCurrentUser();
-      if (existingUser) {
-        updateActiveUserLayout(existingUser);
+    (async function() {
+      if (window.FocusStorage.isGuest && window.FocusStorage.isGuest()) {
+        updateActiveUserLayout('Guest');
         toggleView(true);
-        if (typeof onLogin === 'function') onLogin(existingUser);
+        if (typeof onLogin === 'function') onLogin('Guest');
       } else {
-        toggleView(false);
+        const existingUser = window.FocusStorage.getCurrentUser();
+        if (existingUser) {
+          // Since registered user storage is online-only, restore the session cache asynchronously first!
+          const success = await window.FocusStorage.restoreSession(existingUser);
+          if (success) {
+            updateActiveUserLayout(existingUser);
+            toggleView(true);
+            if (typeof onLogin === 'function') onLogin(existingUser);
+          } else {
+            // If the session restore fails (e.g. invalid config or offline), log out to keep app state clean
+            window.FocusStorage.logout();
+            toggleView(false);
+          }
+        } else {
+          toggleView(false);
+        }
       }
-    }
+    })();
   }
 
   // Export to Global Namespace

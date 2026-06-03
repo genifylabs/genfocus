@@ -9,25 +9,12 @@
 (function () {
   // ── Storage helpers ─────────────────────────────────────────────────────────
 
-  function prefKey() {
-    const user = window.FocusStorage.getCurrentUser();
-    return (user && user !== 'Guest')
-      ? `genfocus_${user.toLowerCase()}_notifications`
-      : 'genfocus_guest_notifications';
-  }
-
-  function notifStore() {
-    return (window.FocusStorage.isGuest && window.FocusStorage.isGuest())
-      ? sessionStorage
-      : localStorage;
-  }
-
   function isEnabled() {
-    return notifStore().getItem(prefKey()) === 'true';
+    return window.FocusStorage.getNotificationPreference();
   }
 
   function setEnabled(bool) {
-    notifStore().setItem(prefKey(), bool ? 'true' : 'false');
+    window.FocusStorage.saveNotificationPreference(bool);
     syncToggleUI();
   }
 
