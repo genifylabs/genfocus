@@ -7,12 +7,12 @@ import { getFirestore, doc, setDoc, getDoc, collection, addDoc, deleteDoc, onSna
 // Paste the credentials you copied from the Firebase Console here:
 // ==========================================================================
 const inlineConfig = {
-  apiKey: "AIzaSyCadIrg9Xttu7TCsfHSOQ5Kg0h-ODtlGN8",
-  authDomain: "clearbook-f4aac.firebaseapp.com",
-  projectId: "clearbook-f4aac",
-  storageBucket: "clearbook-f4aac.firebasestorage.app",
-  messagingSenderId: "705957452408",
-  appId: "1:705957452408:web:82755fd173968d168bab8d"
+  apiKey: "AIzaSyDQQUkjrXygqG2oE_OlNZZ68eoLBbOohp0",
+  authDomain: "genfocus-35d2e.firebaseapp.com",
+  projectId: "genfocus-35d2e",
+  storageBucket: "genfocus-35d2e.firebasestorage.app",
+  messagingSenderId: "263069806851",
+  appId: "1:263069806851:web:168a63a52de617d51cf936"
 };
 
 // ==========================================================================
